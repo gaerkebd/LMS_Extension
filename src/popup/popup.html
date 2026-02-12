@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Time Estimator</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <h1>📚 Canvas Time Estimator</h1>
+      <button id="refresh-btn" class="icon-btn" title="Refresh assignments">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Connection Status -->
+    <div id="connection-status" class="status-bar">
+      <span class="status-dot"></span>
+      <span class="status-text">Checking connection...</span>
+    </div>
+
+    <!-- Weekly Summary -->
+    <section class="summary-card">
+      <h2>This Week's Workload</h2>
+      <div class="summary-stats">
+        <div class="stat">
+          <span class="stat-value" id="total-assignments">-</span>
+          <span class="stat-label">Assignments</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="total-time">-</span>
+          <span class="stat-label">Est. Hours</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="due-today">-</span>
+          <span class="stat-label">Due Today</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Assignments List -->
+    <section class="assignments-section">
+      <h2>Upcoming Assignments</h2>
+      <div id="assignments-list" class="assignments-list">
+        <div class="loading-spinner">
+          <div class="spinner"></div>
+          <p>Loading assignments...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <a href="#" id="open-options">Settings</a>
+      <span class="separator">•</span>
+      <a href="#" id="view-canvas">Open Canvas</a>
+    </footer>
+  </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
