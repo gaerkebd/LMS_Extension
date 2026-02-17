@@ -1,0 +1,220 @@
+================================================================================
+                    CANVAS LMS TIME ESTIMATOR - CODEBASE GUIDE
+================================================================================
+
+OVERVIEW
+--------
+This Chrome extension fetches your Canvas LMS assignments and uses AI (or
+heuristics) to estimate how long each will take. It displays estimates in a
+popup and can inject time badges directly into Canvas pages.
+
+Tech Stack: React 18, TypeScript, Vite, Tailwind CSS, CRXJS (Chrome Extension bundler)
+
+
+================================================================================
+                              PROJECT STRUCTURE
+================================================================================
+
+LMS_Extension/
+├── manifest.json          # Chrome extension config (permissions, entry points)
+├── package.json           # Dependencies and npm scripts
+├── vite.config.ts         # Vite + CRXJS build configuration
+├── tsconfig.json          # TypeScript settings
+├── tailwind.config.js     # Tailwind CSS theme customization
+│
+├── public/                # Static files copied to dist as-is
+│   └── content-styles.css # Styles injected into Canvas pages
+│
+├── assets/
+│   └── icons/             # Extension icons (16, 48, 128px)
+│
+└── src/
+    ├── types/index.ts     # TypeScript interfaces (Assignment, Settings, etc.)
+    ├── styles/globals.css # Tailwind imports + custom utility classes
+    │
+    ├── popup/             # EXTENSION POPUP (when you click the icon)
+    │   ├── index.html     # Entry HTML
+    │   ├── main.tsx       # React mount point
+    │   ├── Popup.tsx      # Main popup component (state, data fetching)
+    │   └── components/    # UI components (Header, AssignmentCard, etc.)
+    │
+    ├── options/           # SETTINGS PAGE (right-click extension > Options)
+    │   ├── index.html     # Entry HTML
+    │   ├── main.tsx       # React mount point
+    │   ├── Options.tsx    # Main settings component
+    │   └── components/    # Settings sections (Canvas, AI, Preferences)
+    │
+    ├── background/        # SERVICE WORKER (runs in background)
+    │   └── service-worker.ts
+    │
+    ├── content/           # CONTENT SCRIPT (injected into Canvas pages)
+    │   └── content-script.ts
+    │
+    └── services/          # CORE BUSINESS LOGIC
+        ├── canvas-api.ts      # Canvas LMS API client
+        └── time-estimator.ts  # AI + heuristic time estimation
+
+
+================================================================================
+                              DATA FLOW
+================================================================================
+
+1. USER OPENS POPUP
+   Popup.tsx -> sends message "GET_ASSIGNMENTS" -> service-worker.ts
+
+2. SERVICE WORKER FETCHES DATA
+   service-worker.ts -> CanvasAPI.getTodoItems() -> Canvas REST API
+
+3. TIME ESTIMATION
+   service-worker.ts -> TimeEstimator.estimateAll(assignments)
+   - If AI configured: sends to OpenAI/Anthropic API
+   - Otherwise: uses heuristic rules (type, points, keywords)
+
+4. CACHING
+   Results stored in chrome.storage.local (5-min cache)
+   Settings stored in chrome.storage.sync (syncs across devices)
+
+5. DISPLAY
+   Popup receives assignments -> renders AssignmentList -> AssignmentCard
+
+
+================================================================================
+                           KEY FILES TO MODIFY
+================================================================================
+
+FOR UI CHANGES:
+---------------
+- src/popup/Popup.tsx           # Main popup layout and state
+- src/popup/components/*.tsx    # Individual UI components
+- src/styles/globals.css        # Global styles and Tailwind utilities
+- tailwind.config.js            # Colors, fonts, animations
+
+FOR CANVAS API:
+---------------
+- src/services/canvas-api.ts    # API endpoints, data normalization
+
+  Key methods to implement/modify:
+  - fetchPlannerItems()    # Gets assignments from Canvas planner API
+  - normalizeAssignment()  # Converts Canvas data to our Assignment type
+
+  Canvas API docs: https://canvas.instructure.com/doc/api/
+
+FOR TIME ESTIMATION:
+--------------------
+- src/services/time-estimator.ts
+
+  Two estimation modes:
+  1. AI Mode: estimateWithAI() - Sends assignment info to LLM
+  2. Heuristic Mode: estimateWithHeuristics() - Rule-based calculation
+
+  Heuristic factors (adjust these):
+  - Assignment type (quiz=30min, essay=180min, etc.)
+  - Points possible (more points = more time)
+  - Title keywords ("research", "project", "final")
+
+FOR SETTINGS:
+-------------
+- src/options/Options.tsx              # Settings page main component
+- src/options/components/*.tsx         # Individual settings sections
+- src/types/index.ts                   # Settings interface (add new options here)
+
+FOR CONTENT INJECTION:
+----------------------
+- src/content/content-script.ts   # Finds assignments on Canvas, injects badges
+- public/content-styles.css       # Badge styling (color-coded by time)
+
+
+================================================================================
+                           MESSAGE PASSING
+================================================================================
+
+Chrome extensions use message passing between components:
+
+POPUP/OPTIONS -> SERVICE WORKER:
+  chrome.runtime.sendMessage({ type: 'GET_ASSIGNMENTS' })
+  chrome.runtime.sendMessage({ type: 'REFRESH_ASSIGNMENTS' })
+  chrome.runtime.sendMessage({ type: 'TEST_CONNECTION', url, token })
+  chrome.runtime.sendMessage({ type: 'ESTIMATE_SINGLE', assignment })
+
+SERVICE WORKER handles these in handleMessage() switch statement.
+
+Add new message types:
+1. Define type in src/types/index.ts (MessageType union)
+2. Add case in service-worker.ts handleMessage()
+3. Send from popup/options with chrome.runtime.sendMessage()
+
+
+================================================================================
+                           STORAGE
+================================================================================
+
+chrome.storage.sync (settings - synced across devices):
+  - canvasUrl, apiToken
+  - aiProvider, openaiApiKey, anthropicApiKey, estimationModel
+  - showNotifications, refreshInterval, lookaheadDays, injectBadges
+
+chrome.storage.local (cache - local only):
+  - cachedAssignments
+  - lastUpdated
+
+
+================================================================================
+                        DEVELOPMENT COMMANDS
+================================================================================
+
+npm install          # Install dependencies
+npm run dev          # Start dev server with hot reload
+npm run build        # Production build to /dist
+
+Load extension:
+1. Go to chrome://extensions
+2. Enable "Developer mode" (top right)
+3. Click "Load unpacked"
+4. Select the /dist folder
+
+After code changes:
+- React components: Auto-refresh (HMR)
+- Service worker/manifest: Click refresh icon on extension card
+
+
+================================================================================
+                         COMMON TASKS
+================================================================================
+
+ADD A NEW SETTING:
+1. Add property to Settings interface (src/types/index.ts)
+2. Add default value in Options.tsx DEFAULT_SETTINGS
+3. Add UI control in appropriate section component
+4. Use in service-worker.ts or wherever needed
+
+ADD NEW ASSIGNMENT DATA:
+1. Add property to Assignment interface (src/types/index.ts)
+2. Populate in canvas-api.ts normalizeAssignment()
+3. Display in AssignmentCard.tsx
+
+CHANGE TIME ESTIMATION LOGIC:
+1. Open src/services/time-estimator.ts
+2. Modify BASE_TIMES, KEYWORD_MODIFIERS, or estimation formulas
+3. For AI: modify the prompt in buildEstimationPrompt()
+
+STYLE CHANGES:
+- Component-specific: Add Tailwind classes directly in TSX
+- Global utilities: Add to src/styles/globals.css @layer components
+- Theme (colors/fonts): Modify tailwind.config.js
+
+
+================================================================================
+                              NOTES
+================================================================================
+
+- The Canvas API requires an access token (generated in Canvas settings)
+- AI estimation is optional - heuristics work without any API key
+- Content script only runs on *.instructure.com (Canvas domains)
+- Manifest v3 uses service workers (not background pages) - no persistent state
+- CRXJS handles TypeScript compilation and hot reload for extensions
+
+For Canvas API testing, you'll need:
+1. Your school's Canvas URL (e.g., https://canvas.university.edu)
+2. An API access token (Canvas > Account > Settings > New Access Token)
+
+================================================================================

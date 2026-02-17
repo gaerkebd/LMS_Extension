@@ -6,35 +6,37 @@
   "permissions": [
     "storage",
     "activeTab",
-    "alarms"
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "https://*.instructure.com/*",
-    "https://api.openai.com/*"
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*"
   ],
   "action": {
-    "default_popup": "src/popup/popup.html",
+    "default_popup": "src/popup/index.html",
     "default_icon": {
-      "16": "assets/icons/icon16.png",
-      "48": "assets/icons/icon48.png",
-      "128": "assets/icons/icon128.png"
+      "16": "assets/icons/icon16.jpg",
+      "48": "assets/icons/icon48.jpg",
+      "128": "assets/icons/icon128.jpg"
     }
   },
   "background": {
-    "service_worker": "src/background/service-worker.js",
+    "service_worker": "src/background/service-worker.ts",
     "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["https://*.instructure.com/*"],
-      "js": ["src/content/content-script.js"],
-      "css": ["src/content/content-styles.css"]
+      "js": ["src/content/content-script.ts"],
+      "css": ["content-styles.css"]
     }
   ],
-  "options_page": "src/options/options.html",
+  "options_page": "src/options/index.html",
   "icons": {
-    "16": "assets/icons/icon16.png",
-    "48": "assets/icons/icon48.png",
-    "128": "assets/icons/icon128.png"
+    "16": "assets/icons/icon16.jpg",
+    "48": "assets/icons/icon48.jpg",
+    "128": "assets/icons/icon128.jpg"
   }
 }

@@ -3,8 +3,9 @@
  * Handles background tasks, alarms, and message passing for the extension
  */
 
-import { CanvasAPI } from '../services/canvas-api.js';
-import { TimeEstimator } from '../services/time-estimator.js';
+import { CanvasAPI } from '../services/canvas-api';
+import { TimeEstimator } from '../services/time-estimator';
+import type { Assignment } from '../types';
 
 // Constants
 const REFRESH_ALARM = 'refresh-assignments';
@@ -78,7 +79,7 @@ async function refreshAssignmentsInBackground() {
 /**
  * Check for urgent assignments and send notifications
  */
-async function checkForUrgentAssignments(assignments) {
+async function checkForUrgentAssignments(assignments: Assignment[]) {
   const settings = await chrome.storage.sync.get(['showNotifications']);
 
   if (!settings.showNotifications) return;
@@ -88,7 +89,7 @@ async function checkForUrgentAssignments(assignments) {
 
   const urgent = assignments.filter(a => {
     const dueDate = new Date(a.dueDate);
-    return dueDate - now < twentyFourHours && dueDate > now;
+    return dueDate.getTime() - now.getTime() < twentyFourHours && dueDate > now;
   });
 
   if (urgent.length > 0) {
@@ -113,7 +114,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 /**
  * Process incoming messages
  */
-async function handleMessage(message, sender) {
+async function handleMessage(message: { type: string; assignment?: Partial<Assignment>; url?: string; token?: string }, _sender: chrome.runtime.MessageSender) {
   switch (message.type) {
     case 'GET_ASSIGNMENTS':
       return await getAssignments();
@@ -169,14 +170,14 @@ async function getAssignments() {
 /**
  * Test Canvas API connection
  */
-async function testCanvasConnection(url, token) {
+async function testCanvasConnection(url: string, token: string) {
   try {
     const canvasAPI = new CanvasAPI();
     canvasAPI.configure(url, token);
     const isConnected = await canvasAPI.testConnection();
     return { success: isConnected };
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
 

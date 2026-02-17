@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Time Estimator - Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>📚 Canvas Time Estimator</h1>
+      <p>Configure your extension settings</p>
+    </header>
+
+    <main class="settings-container">
+      <!-- Canvas Configuration -->
+      <section class="settings-section">
+        <h2>Canvas LMS Connection</h2>
+
+        <div class="form-group">
+          <label for="canvas-url">Canvas URL</label>
+          <input
+            type="url"
+            id="canvas-url"
+            placeholder="https://yourschool.instructure.com"
+            autocomplete="off"
+          >
+          <p class="help-text">
+            Enter your school's Canvas URL (e.g., https://canvas.university.edu)
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="api-token">API Access Token</label>
+          <div class="input-with-button">
+            <input
+              type="password"
+              id="api-token"
+              placeholder="Enter your Canvas API token"
+              autocomplete="off"
+            >
+            <button type="button" id="toggle-token" class="btn-icon" title="Show/hide token">
+              👁️
+            </button>
+          </div>
+          <p class="help-text">
+            <a href="#" id="token-help-link">How to get your API token →</a>
+          </p>
+        </div>
+
+        <button type="button" id="test-connection" class="btn btn-secondary">
+          Test Connection
+        </button>
+        <span id="connection-status" class="status-message"></span>
+      </section>
+
+      <!-- AI Configuration -->
+      <section class="settings-section">
+        <h2>AI Time Estimation</h2>
+
+        <div class="form-group">
+          <label for="ai-provider">AI Provider</label>
+          <select id="ai-provider">
+            <option value="none">None (Use heuristics only)</option>
+            <option value="openai">OpenAI (GPT)</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+          </select>
+          <p class="help-text">
+            Select an AI provider for more accurate time estimates
+          </p>
+        </div>
+
+        <div class="form-group ai-config" id="openai-config" style="display: none;">
+          <label for="openai-key">OpenAI API Key</label>
+          <div class="input-with-button">
+            <input
+              type="password"
+              id="openai-key"
+              placeholder="sk-..."
+              autocomplete="off"
+            >
+            <button type="button" class="btn-icon toggle-visibility" title="Show/hide">
+              👁️
+            </button>
+          </div>
+          <p class="help-text">
+            Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Dashboard</a>
+          </p>
+        </div>
+
+        <div class="form-group ai-config" id="anthropic-config" style="display: none;">
+          <label for="anthropic-key">Anthropic API Key</label>
+          <div class="input-with-button">
+            <input
+              type="password"
+              id="anthropic-key"
+              placeholder="sk-ant-..."
+              autocomplete="off"
+            >
+            <button type="button" class="btn-icon toggle-visibility" title="Show/hide">
+              👁️
+            </button>
+          </div>
+          <p class="help-text">
+            Get your API key from <a href="https://console.anthropic.com/" target="_blank">Anthropic Console</a>
+          </p>
+        </div>
+
+        <div class="form-group" id="model-config" style="display: none;">
+          <label for="estimation-model">Model</label>
+          <select id="estimation-model">
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Fast & Cheap)</option>
+            <option value="gpt-4o-mini">GPT-4o Mini (Balanced)</option>
+            <option value="gpt-4o">GPT-4o (Most Accurate)</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Notification Settings -->
+      <section class="settings-section">
+        <h2>Notifications</h2>
+
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="show-notifications">
+            <span>Show notifications for urgent assignments</span>
+          </label>
+          <p class="help-text">
+            Get notified when assignments are due within 24 hours
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="refresh-interval">Auto-refresh Interval</label>
+          <select id="refresh-interval">
+            <option value="15">Every 15 minutes</option>
+            <option value="30">Every 30 minutes</option>
+            <option value="60">Every hour</option>
+            <option value="120">Every 2 hours</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Data Management -->
+      <section class="settings-section">
+        <h2>Data Management</h2>
+
+        <div class="button-group">
+          <button type="button" id="clear-cache" class="btn btn-secondary">
+            Clear Cached Data
+          </button>
+          <button type="button" id="export-data" class="btn btn-secondary">
+            Export Settings
+          </button>
+          <button type="button" id="import-data" class="btn btn-secondary">
+            Import Settings
+          </button>
+          <input type="file" id="import-file" accept=".json" style="display: none;">
+        </div>
+      </section>
+
+      <!-- Save Button -->
+      <div class="save-section">
+        <button type="button" id="save-settings" class="btn btn-primary">
+          Save Settings
+        </button>
+        <span id="save-status" class="status-message"></span>
+      </div>
+    </main>
+
+    <!-- Token Help Modal -->
+    <div id="token-modal" class="modal" style="display: none;">
+      <div class="modal-content">
+        <h3>How to Get Your Canvas API Token</h3>
+        <ol>
+          <li>Log in to your Canvas account</li>
+          <li>Click on <strong>Account</strong> in the left sidebar</li>
+          <li>Click on <strong>Settings</strong></li>
+          <li>Scroll down to <strong>Approved Integrations</strong></li>
+          <li>Click <strong>+ New Access Token</strong></li>
+          <li>Enter a purpose (e.g., "Time Estimator Extension")</li>
+          <li>Click <strong>Generate Token</strong></li>
+          <li>Copy the token and paste it here</li>
+        </ol>
+        <p class="warning">
+          ⚠️ Keep your token secure! Never share it with others.
+        </p>
+        <button type="button" id="close-modal" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <p>Canvas Time Estimator v1.0.0</p>
+      <p><a href="https://github.com/yourusername/canvas-time-estimator" target="_blank">GitHub</a></p>
+    </footer>
+  </div>
+
+  <script src="options.js" type="module"></script>
+</body>
+</html>

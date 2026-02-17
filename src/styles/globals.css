@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles for extension popups */
+:root {
+  --color-primary: #e63946;
+  --color-primary-dark: #d62839;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+}
+
+body {
+  @apply font-sans text-sm text-gray-800 bg-white;
+  min-width: 360px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 rounded;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400;
+}
+
+/* Utility classes */
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply bg-canvas-red text-white hover:bg-red-700;
+    @apply focus:ring-canvas-red;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-100 text-gray-700 hover:bg-gray-200;
+    @apply focus:ring-gray-400;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-gray-600 hover:bg-gray-100;
+  }
+
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-100;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 border border-gray-200 rounded-lg;
+    @apply focus:outline-none focus:ring-2 focus:ring-canvas-red focus:border-transparent;
+    @apply placeholder-gray-400;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-low {
+    @apply bg-green-100 text-green-700;
+  }
+
+  .badge-medium {
+    @apply bg-amber-100 text-amber-700;
+  }
+
+  .badge-high {
+    @apply bg-red-100 text-red-700;
+  }
+}
