@@ -4,7 +4,7 @@ node_modules/
 # Build output
 dist/
 *.zip
-
+# Canvas API key: 1053~TmDPy9Ky44vUrmh4AaVrAQfww7MAVMkTRc3kNve8WrQXJk2ktMXCzNRDttCfWRxX
 # IDE and editors
 .idea/
 .vscode/

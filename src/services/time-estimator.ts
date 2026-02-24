@@ -3,11 +3,35 @@
  * Uses AI to estimate how long assignments will take to complete
  */
 
+interface AssignmentInput {
+  title?: string;
+  type?: string;
+  courseName?: string;
+  pointsPossible?: number;
+  submissionTypes?: string[];
+  description?: string;
+  [key: string]: unknown;
+}
+
+interface AIEstimateResult {
+  minutes: number;
+  reasoning?: string;
+}
+
 export class TimeEstimator {
+  private aiProvider: string | null;
+  private apiKey: string | null;
+  private model: string;
+  private localLlmUrl: string;
+  private localLlmModel: string;
+  private defaultEstimates: Record<string, { base: number; perPoint: number }>;
+
   constructor() {
     this.aiProvider = null;
     this.apiKey = null;
     this.model = 'gpt-3.5-turbo';
+    this.localLlmUrl = 'http://localhost:11434';
+    this.localLlmModel = 'qwen2.5-coder:1.5b';
 
     // Default estimation rules (fallback when AI is unavailable)
     this.defaultEstimates = {
@@ -25,31 +49,46 @@ export class TimeEstimator {
   /**
    * Configure the AI provider
    */
-  async configure() {
+  async configure(): Promise<void> {
     const settings = await chrome.storage.sync.get([
       'aiProvider',
       'openaiApiKey',
       'anthropicApiKey',
+      'localLlmUrl',
+      'localLlmModel',
       'estimationModel'
     ]);
 
-    this.aiProvider = settings.aiProvider || 'openai';
+    this.aiProvider = settings.aiProvider || 'none';
     this.model = settings.estimationModel || 'gpt-3.5-turbo';
+
+    console.log('[TimeEstimator] Configure called with settings:', {
+      aiProvider: this.aiProvider,
+      model: this.model,
+      hasOpenAIKey: !!settings.openaiApiKey,
+      hasAnthropicKey: !!settings.anthropicApiKey,
+      localLlmUrl: settings.localLlmUrl,
+      localLlmModel: settings.localLlmModel
+    });
 
     if (this.aiProvider === 'openai') {
       this.apiKey = settings.openaiApiKey;
     } else if (this.aiProvider === 'anthropic') {
       this.apiKey = settings.anthropicApiKey;
+    } else if (this.aiProvider === 'local') {
+      this.localLlmUrl = settings.localLlmUrl || 'http://localhost:11434';
+      this.localLlmModel = settings.localLlmModel || 'qwen2.5-coder:1.5b';
+      console.log('[TimeEstimator] Local LLM configured:', this.localLlmUrl, this.localLlmModel);
     }
   }
 
   /**
    * Estimate time for all assignments
    */
-  async estimateAll(assignments) {
+  async estimateAll(assignments: AssignmentInput[]): Promise<AssignmentInput[]> {
     await this.configure();
 
-    const estimatedAssignments = [];
+    const estimatedAssignments: AssignmentInput[] = [];
 
     for (const assignment of assignments) {
       const estimated = await this.estimateSingle(assignment);
@@ -62,24 +101,37 @@ export class TimeEstimator {
   /**
    * Estimate time for a single assignment
    */
-  async estimateSingle(assignment) {
+  async estimateSingle(assignment: AssignmentInput): Promise<AssignmentInput> {
     await this.configure();
 
-    let estimatedMinutes;
-    let estimationMethod;
+    let estimatedMinutes: number;
+    let estimationMethod: string;
 
-    // Try AI estimation if API key is configured
-    if (this.apiKey) {
+    // Try AI estimation if configured
+    const useAI = this.aiProvider === 'local' || (this.apiKey && (this.aiProvider === 'openai' || this.aiProvider === 'anthropic'));
+
+    console.log('[TimeEstimator] estimateSingle:', {
+      assignmentTitle: assignment.title,
+      aiProvider: this.aiProvider,
+      useAI,
+      hasApiKey: !!this.apiKey,
+      localLlmUrl: this.localLlmUrl
+    });
+
+    if (useAI) {
       try {
+        console.log('[TimeEstimator] Calling AI estimation for:', assignment.title);
         const aiEstimate = await this.getAIEstimate(assignment);
         estimatedMinutes = aiEstimate.minutes;
         estimationMethod = 'ai';
+        console.log('[TimeEstimator] AI estimate result:', aiEstimate);
       } catch (error) {
-        console.warn('AI estimation failed, using heuristics:', error);
+        console.warn('[TimeEstimator] AI estimation failed, using heuristics:', error);
         estimatedMinutes = this.getHeuristicEstimate(assignment);
         estimationMethod = 'heuristic';
       }
     } else {
+      console.log('[TimeEstimator] Using heuristics (AI not configured)');
       estimatedMinutes = this.getHeuristicEstimate(assignment);
       estimationMethod = 'heuristic';
     }
@@ -95,13 +147,15 @@ export class TimeEstimator {
   /**
    * Get AI-powered time estimate
    */
-  async getAIEstimate(assignment) {
+  async getAIEstimate(assignment: AssignmentInput): Promise<AIEstimateResult> {
     const prompt = this.buildPrompt(assignment);
 
     if (this.aiProvider === 'openai') {
       return await this.callOpenAI(prompt);
     } else if (this.aiProvider === 'anthropic') {
       return await this.callAnthropic(prompt);
+    } else if (this.aiProvider === 'local') {
+      return await this.callOllama(prompt);
     }
 
     throw new Error(`Unknown AI provider: ${this.aiProvider}`);
@@ -110,12 +164,12 @@ export class TimeEstimator {
   /**
    * Build prompt for AI estimation
    */
-  buildPrompt(assignment) {
+  buildPrompt(assignment: AssignmentInput): string {
     const details = [
       `Title: ${assignment.title}`,
       `Type: ${assignment.type}`,
       `Course: ${assignment.courseName}`,
-      assignment.pointsPossible ? `Points: ${assignment.pointsPossible}` : null,
+      typeof assignment.pointsPossible === 'number' ? `Points: ${assignment.pointsPossible}` : null,
       assignment.submissionTypes?.length ? `Submission types: ${assignment.submissionTypes.join(', ')}` : null,
       assignment.description ? `Description snippet: ${this.truncate(this.stripHtml(assignment.description), 500)}` : null
     ].filter(Boolean).join('\n');
@@ -140,7 +194,7 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
   /**
    * Call OpenAI API
    */
-  async callOpenAI(prompt) {
+  async callOpenAI(prompt: string): Promise<AIEstimateResult> {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -180,12 +234,12 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
   /**
    * Call Anthropic API
    */
-  async callAnthropic(prompt) {
+  async callAnthropic(prompt: string): Promise<AIEstimateResult> {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
+        'x-api-key': this.apiKey || '',
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
@@ -216,21 +270,78 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
   }
 
   /**
+   * Call Ollama API (local LLM)
+   */
+  async callOllama(prompt: string): Promise<AIEstimateResult> {
+    const url = `${this.localLlmUrl}/api/generate`;
+    console.log('[TimeEstimator] Calling Ollama:', {
+      url,
+      model: this.localLlmModel,
+      promptLength: prompt.length
+    });
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.localLlmModel,
+        prompt: prompt,
+        stream: false,
+        options: {
+          temperature: 0.3,
+        }
+      })
+    });
+
+    console.log('[TimeEstimator] Ollama response status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[TimeEstimator] Ollama error:', errorText);
+      throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    const content = data.response;
+    console.log('[TimeEstimator] Ollama raw response:', content);
+
+    try {
+      // Try to parse JSON from the response
+      const jsonMatch = content.match(/\{[\s\S]*"minutes"[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      throw new Error('No JSON found');
+    } catch {
+      // Try to extract minutes from the response
+      const match = content.match(/(\d+)\s*minutes?/i);
+      if (match) {
+        return { minutes: parseInt(match[1]), reasoning: content };
+      }
+      // Default fallback
+      console.warn('Could not parse Ollama response, using default estimate');
+      return { minutes: 60, reasoning: 'Could not parse LLM response' };
+    }
+  }
+
+  /**
    * Get heuristic-based time estimate (fallback)
    */
-  getHeuristicEstimate(assignment) {
+  getHeuristicEstimate(assignment: AssignmentInput): number {
     const type = this.categorizeAssignment(assignment);
     const rules = this.defaultEstimates[type] || this.defaultEstimates.default;
 
     let minutes = rules.base;
 
     // Adjust based on points
-    if (assignment.pointsPossible) {
+    if (typeof assignment.pointsPossible === 'number') {
       minutes += assignment.pointsPossible * rules.perPoint;
     }
 
     // Adjust based on submission types
-    if (assignment.submissionTypes) {
+    if (Array.isArray(assignment.submissionTypes)) {
       if (assignment.submissionTypes.includes('online_upload')) {
         minutes += 15; // Time for formatting and uploading
       }
@@ -246,7 +357,7 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
   /**
    * Categorize assignment type
    */
-  categorizeAssignment(assignment) {
+  categorizeAssignment(assignment: AssignmentInput): string {
     const title = (assignment.title || '').toLowerCase();
     const type = (assignment.type || '').toLowerCase();
 
@@ -263,7 +374,7 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
   /**
    * Strip HTML tags from text
    */
-  stripHtml(html) {
+  stripHtml(html: string): string {
     if (!html) return '';
     return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   }
@@ -271,7 +382,7 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
   /**
    * Truncate text to a maximum length
    */
-  truncate(text, maxLength) {
+  truncate(text: string, maxLength: number): string {
     if (!text || text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
   }

@@ -79,7 +79,7 @@ async function refreshAssignmentsInBackground() {
 /**
  * Check for urgent assignments and send notifications
  */
-async function checkForUrgentAssignments(assignments: Assignment[]) {
+async function checkForUrgentAssignments(assignments: Array<{ dueDate?: string; [key: string]: unknown }>) {
   const settings = await chrome.storage.sync.get(['showNotifications']);
 
   if (!settings.showNotifications) return;
@@ -88,6 +88,7 @@ async function checkForUrgentAssignments(assignments: Assignment[]) {
   const twentyFourHours = 24 * 60 * 60 * 1000;
 
   const urgent = assignments.filter(a => {
+    if (!a.dueDate) return false;
     const dueDate = new Date(a.dueDate);
     return dueDate.getTime() - now.getTime() < twentyFourHours && dueDate > now;
   });
@@ -128,12 +129,18 @@ async function handleMessage(message: { type: string; assignment?: Partial<Assig
       return cached;
 
     case 'ESTIMATE_SINGLE':
-      const estimator = new TimeEstimator();
-      const estimate = await estimator.estimateSingle(message.assignment);
-      return estimate;
+      if (message.assignment) {
+        const estimator = new TimeEstimator();
+        const estimate = await estimator.estimateSingle(message.assignment);
+        return estimate;
+      }
+      return { error: 'No assignment provided' };
 
     case 'TEST_CONNECTION':
-      return await testCanvasConnection(message.url, message.token);
+      if (message.url && message.token) {
+        return await testCanvasConnection(message.url, message.token);
+      }
+      return { success: false, error: 'Missing URL or token' };
 
     default:
       console.warn('Unknown message type:', message.type);

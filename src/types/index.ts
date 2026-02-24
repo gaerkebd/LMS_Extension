@@ -39,9 +39,11 @@ export interface AssignmentResponse {
 export interface Settings {
   canvasUrl: string;
   apiToken: string;
-  aiProvider: 'none' | 'openai' | 'anthropic';
+  aiProvider: 'none' | 'openai' | 'anthropic' | 'local';
   openaiApiKey?: string;
   anthropicApiKey?: string;
+  localLlmUrl?: string;
+  localLlmModel?: string;
   estimationModel: string;
   showNotifications: boolean;
   refreshInterval: number;
