@@ -115,7 +115,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 /**
  * Process incoming messages
  */
-async function handleMessage(message: { type: string; assignment?: Partial<Assignment>; url?: string; token?: string }, _sender: chrome.runtime.MessageSender) {
+async function handleMessage(message: { type: string; assignment?: Partial<Assignment>; url?: string; token?: string; daysAhead?: number }, _sender: chrome.runtime.MessageSender) {
   switch (message.type) {
     case 'GET_ASSIGNMENTS':
       return await getAssignments();
@@ -141,6 +141,9 @@ async function handleMessage(message: { type: string; assignment?: Partial<Assig
         return await testCanvasConnection(message.url, message.token);
       }
       return { success: false, error: 'Missing URL or token' };
+
+    case 'FETCH_ASSIGNMENTS_DAYS_AHEAD':
+      return await fetchAssignmentsDaysAhead(message.daysAhead || 7);
 
     default:
       console.warn('Unknown message type:', message.type);
@@ -184,6 +187,34 @@ async function testCanvasConnection(url: string, token: string) {
     const isConnected = await canvasAPI.testConnection();
     return { success: isConnected };
   } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+/**
+ * Fetch assignments due within X days using the new Canvas API method
+ */
+async function fetchAssignmentsDaysAhead(daysAhead: number) {
+  try {
+    const settings = await chrome.storage.sync.get(['canvasUrl', 'apiToken']);
+
+    if (!settings.canvasUrl || !settings.apiToken) {
+      return { success: false, error: 'Canvas not configured. Please set URL and token in settings.' };
+    }
+
+    const canvasAPI = new CanvasAPI();
+    canvasAPI.configure(settings.canvasUrl, settings.apiToken);
+
+    const assignments = await canvasAPI.getAssignmentsDueWithinDays(daysAhead);
+
+    return {
+      success: true,
+      assignments,
+      count: assignments.length,
+      daysAhead
+    };
+  } catch (error) {
+    console.error('Failed to fetch assignments:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }

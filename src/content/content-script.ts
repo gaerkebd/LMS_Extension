@@ -92,7 +92,7 @@
   /**
    * Extract assignment information from an element
    */
-  function extractAssignmentInfo(element) {
+  function extractAssignmentInfo(element: Element) {
     // Try to get assignment title
     const titleElement = element.querySelector(
       '.planner-item-link, .assignment-title, .ig-title, .fc-title, a[href*="assignments"]'
@@ -140,7 +140,7 @@
   /**
    * Detect assignment type from element or title
    */
-  function detectAssignmentType(element, title) {
+  function detectAssignmentType(element: { innerHTML: string; }, title: string) {
     const titleLower = title.toLowerCase();
     const html = element.innerHTML.toLowerCase();
 
@@ -156,7 +156,7 @@
   /**
    * Get time estimate from background script
    */
-  async function getTimeEstimate(assignmentInfo) {
+  async function getTimeEstimate(assignmentInfo: { id: any; title: any; courseName: any; dueDate: any; type: string; url: any; }) {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         { type: 'ESTIMATE_SINGLE', assignment: assignmentInfo },
@@ -176,7 +176,7 @@
   /**
    * Inject time estimate badge into element
    */
-  function injectBadge(element, estimate) {
+  function injectBadge(element: Element, estimate: { estimatedMinutes?: any; }) {
     // Remove existing badge if present
     const existingBadge = element.querySelector(`.${CONFIG.badgeClass}`);
     if (existingBadge) {
@@ -206,7 +206,7 @@
   /**
    * Format time in short form
    */
-  function formatTime(minutes) {
+  function formatTime(minutes: number) {
     if (minutes < 60) {
       return `${minutes}m`;
     }
@@ -218,7 +218,7 @@
   /**
    * Format time in long form
    */
-  function formatTimeLong(minutes) {
+  function formatTimeLong(minutes: number) {
     if (minutes < 60) {
       return `${minutes} minutes`;
     }

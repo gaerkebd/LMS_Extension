@@ -30,6 +30,8 @@ export function DebugPanel() {
   const [cachedAssignments, setCachedAssignments] = useState<unknown[]>([]);
   const [totalTestTime, setTotalTestTime] = useState<number | null>(null);
   const [testProgress, setTestProgress] = useState<{ current: number; total: number } | null>(null);
+  const [daysAhead, setDaysAhead] = useState<number>(7);
+  const [fetchedAssignments, setFetchedAssignments] = useState<unknown[]>([]);
 
   const addLog = (type: LogEntry['type'], message: string, data?: unknown) => {
     setLogs(prev => [...prev, {
@@ -383,6 +385,40 @@ export function DebugPanel() {
     }
   }
 
+  async function fetchAssignmentsDaysAhead() {
+    setIsRunning(true);
+    setFetchedAssignments([]);
+    addLog('info', `Fetching assignments due within ${daysAhead} days...`);
+
+    const startTime = Date.now();
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'FETCH_ASSIGNMENTS_DAYS_AHEAD',
+        daysAhead
+      });
+
+      const duration = Date.now() - startTime;
+
+      if (response.success) {
+        setFetchedAssignments(response.assignments);
+        addLog('success', `Fetched ${response.count} assignments due within ${daysAhead} days (${duration}ms)`, {
+          assignments: response.assignments.map((a: { title: string; courseName: string; dueDate: string }) => ({
+            title: a.title,
+            course: a.courseName,
+            dueDate: a.dueDate
+          }))
+        });
+      } else {
+        addLog('error', `Failed to fetch assignments: ${response.error}`);
+      }
+    } catch (error) {
+      addLog('error', 'Fetch assignments failed', String(error));
+    }
+
+    setIsRunning(false);
+  }
+
   function buildPrompt(assignment: Record<string, unknown>): string {
     const details = [
       `Title: ${assignment.title}`,
@@ -448,8 +484,57 @@ export function DebugPanel() {
           </pre>
         </div>
 
+        {/* Canvas API Test */}
+        <div className="bg-gray-800 rounded-lg p-4 mb-6">
+          <h2 className="text-lg font-semibold mb-3">Canvas API - Fetch Assignments</h2>
+          <div className="flex gap-4 items-center">
+            <div className="flex items-center gap-2">
+              <label htmlFor="daysAhead" className="text-sm text-gray-400">Days ahead:</label>
+              <input
+                id="daysAhead"
+                type="number"
+                min="1"
+                max="90"
+                value={daysAhead}
+                onChange={(e) => setDaysAhead(Math.max(1, parseInt(e.target.value) || 7))}
+                className="w-20 px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white"
+              />
+            </div>
+            <button
+              onClick={fetchAssignmentsDaysAhead}
+              disabled={isRunning}
+              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-600 rounded font-medium"
+            >
+              {isRunning ? 'Fetching...' : `Fetch Assignments (${daysAhead} days)`}
+            </button>
+          </div>
+          {fetchedAssignments.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm text-gray-400 mb-2">Found {fetchedAssignments.length} assignments:</p>
+              <div className="space-y-2 max-h-64 overflow-auto">
+                {fetchedAssignments.map((asn, idx) => {
+                  const a = asn as Record<string, unknown>;
+                  const dueDate = a.dueDate ? new Date(a.dueDate as string).toLocaleString() : 'No due date';
+                  return (
+                    <div key={idx} className="bg-gray-900 rounded p-3 flex justify-between items-center">
+                      <div>
+                        <p className="font-medium">{String(a.title)}</p>
+                        <p className="text-sm text-gray-400">{String(a.courseName)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-cyan-400">{dueDate}</p>
+                        <p className="text-xs text-gray-500">{String(a.pointsPossible || 0)} pts</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Action Buttons */}
-        <div className="flex gap-4 mb-6">
+        <div className="flex gap-4 mb-6 flex-wrap">
           <button
             onClick={testSingleEstimation}
             disabled={isRunning}
@@ -487,7 +572,7 @@ export function DebugPanel() {
             Check Ollama
           </button>
           <button
-            onClick={() => { setLogs([]); setTestResults([]); }}
+            onClick={() => { setLogs([]); setTestResults([]); setFetchedAssignments([]); }}
             className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded font-medium"
           >
             Clear Logs

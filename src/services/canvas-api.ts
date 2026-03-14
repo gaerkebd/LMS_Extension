@@ -3,7 +3,49 @@
  * Handles all communication with the Canvas LMS API
  */
 
+interface Course {
+  id: number;
+  name: string;
+  course_code: string;
+  enrollments?: Enrollment[];
+  workflow_state: string;
+}
+
+interface Enrollment {
+  type: string;
+  enrollment_state: string;
+  computed_current_score: number | null;
+  computed_final_score: number | null;
+}
+
+interface Assignment {
+  id: number;
+  name: string;
+  due_at: string | null;
+  points_possible: number | null;
+  html_url: string;
+  submission_types: string[];
+  description: string | null;
+  course_id: number;
+}
+
+interface NormalizedAssignment {
+  id: number;
+  title: string;
+  type: string;
+  dueDate: string | null;
+  courseName: string;
+  courseId: number;
+  pointsPossible: number | null;
+  htmlUrl: string;
+  submissionTypes: string[];
+  description: string;
+}
+
 export class CanvasAPI {
+  private baseUrl: string | null;
+  private apiToken: string | null;
+
   constructor() {
     this.baseUrl = null;
     this.apiToken = null;
@@ -12,8 +54,7 @@ export class CanvasAPI {
   /**
    * Configure the API with Canvas URL and token
    */
-  configure(baseUrl, apiToken) {
-    // Normalize the base URL
+  configure(baseUrl: string, apiToken: string): void {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     if (!this.baseUrl.includes('/api/v1')) {
       this.baseUrl = `${this.baseUrl}/api/v1`;
@@ -24,7 +65,7 @@ export class CanvasAPI {
   /**
    * Make an authenticated request to the Canvas API
    */
-  async request(endpoint, options = {}) {
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     if (!this.baseUrl || !this.apiToken) {
       throw new Error('Canvas API not configured. Please set URL and token.');
     }
@@ -57,9 +98,9 @@ export class CanvasAPI {
   /**
    * Test the API connection
    */
-  async testConnection() {
+  async testConnection(): Promise<boolean> {
     try {
-      const user = await this.request('/users/self');
+      const user = await this.request<{ id: number }>('/users/self');
       return !!user.id;
     } catch (error) {
       console.error('Connection test failed:', error);
@@ -70,148 +111,165 @@ export class CanvasAPI {
   /**
    * Get current user information
    */
-  async getCurrentUser() {
+  async getCurrentUser(): Promise<unknown> {
     return await this.request('/users/self');
   }
 
   /**
-   * Get user's courses
+   * Get all active courses with enrollment scores
    */
-  async getCourses(options = {}) {
+  private async fetchAllCourses(): Promise<Course[]> {
     const params = new URLSearchParams({
+      per_page: '100',
       enrollment_state: 'active',
-      per_page: options.perPage || 50,
-      ...options
+      enrollment_type: 'student',
+      state: 'available',
+      'include[]': 'total_scores'
     });
 
-    return await this.request(`/courses?${params}`);
+    console.log('[Canvas-API] Fetching all courses...');
+    return await this.request<Course[]>(`/courses?${params}`);
   }
 
   /**
-   * Get the user's to-do items (planner items)
+   * Filter courses to only include "graded" courses
+   * A graded course has either computed_current_score or computed_final_score set
+   * This filters out clubs, orientations, and other non-academic courses
    */
-  async getTodoItems(options = {}) {
-    const startDate = options.startDate || new Date().toISOString();
-    const endDate = options.endDate || this.getEndOfWeek();
+  private filterGradedCourses(courses: Course[]): Course[] {
+    return courses.filter(course => {
+      const enrollment = course.enrollments?.[0];
+      if (!enrollment) return false;
 
-    const params = new URLSearchParams({
-      start_date: startDate,
-      end_date: endDate,
-      per_page: options.perPage || 100
+      // Course is graded if it has any score computed
+      const hasCurrentScore = enrollment.computed_current_score !== null;
+      const hasFinalScore = enrollment.computed_final_score !== null;
+
+      return hasCurrentScore || hasFinalScore;
     });
+  }
 
-    try {
-      // Try the planner items endpoint first (more comprehensive)
-      const plannerItems = await this.request(`/planner/items?${params}`);
-      return this.normalizePlannerItems(plannerItems);
-    } catch (error) {
-      // Fall back to the todo endpoint
-      console.warn('Planner API failed, falling back to todo endpoint');
-      const todoItems = await this.request('/users/self/todo');
-      return this.normalizeTodoItems(todoItems);
-    }
+  /**
+   * Get only graded courses (filters out clubs, orientations, etc.)
+   */
+  async getGradedCourses(): Promise<Course[]> {
+    const allCourses = await this.fetchAllCourses();
+    const gradedCourses = this.filterGradedCourses(allCourses);
+
+    console.log(`[Canvas-API] Found ${allCourses.length} total courses, ${gradedCourses.length} are graded`);
+    console.log(allCourses);
+    return gradedCourses;
   }
 
   /**
    * Get assignments for a specific course
    */
-  async getCourseAssignments(courseId, options = {}) {
+  private async fetchCourseAssignments(courseId: number): Promise<Assignment[]> {
     const params = new URLSearchParams({
-      per_page: options.perPage || 50,
-      order_by: 'due_at',
-      ...options
+      per_page: '100',
+      order_by: 'due_at'
     });
 
-    return await this.request(`/courses/${courseId}/assignments?${params}`);
+    return await this.request<Assignment[]>(`/courses/${courseId}/assignments?${params}`);
   }
 
   /**
-   * Get a single assignment details
+   * Filter assignments to only those due within the specified number of days
    */
-  async getAssignment(courseId, assignmentId) {
-    return await this.request(`/courses/${courseId}/assignments/${assignmentId}`);
+  private filterAssignmentsByDaysAhead(
+    assignments: Assignment[],
+    daysAhead: number
+  ): Assignment[] {
+    const now = new Date();
+    const cutoffDate = new Date();
+    cutoffDate.setDate(now.getDate() + daysAhead);
+    cutoffDate.setHours(23, 59, 59, 999);
+
+    return assignments.filter(assignment => {
+      if (!assignment.due_at) return false;
+
+      const dueDate = new Date(assignment.due_at);
+      // Assignment must be due in the future and within the cutoff
+      return dueDate >= now && dueDate <= cutoffDate;
+    });
   }
 
   /**
-   * Get upcoming assignments across all courses
+   * Normalize assignments to a consistent format
    */
-  async getUpcomingAssignments() {
-    const courses = await this.getCourses();
-    const assignments = [];
-
-    for (const course of courses) {
-      try {
-        const courseAssignments = await this.getCourseAssignments(course.id, {
-          bucket: 'upcoming'
-        });
-
-        const enriched = courseAssignments.map(a => ({
-          ...a,
-          courseName: course.name,
-          courseId: course.id
-        }));
-
-        assignments.push(...enriched);
-      } catch (error) {
-        console.warn(`Failed to fetch assignments for course ${course.id}:`, error);
-      }
-    }
-
-    return assignments.sort((a, b) =>
-      new Date(a.due_at) - new Date(b.due_at)
-    );
-  }
-
-  /**
-   * Normalize planner items to a consistent format
-   */
-  normalizePlannerItems(items) {
-    return items
-      .filter(item => item.plannable_type === 'assignment' || item.plannable_type === 'quiz')
-      .map(item => ({
-        id: item.plannable_id,
-        title: item.plannable?.title || item.plannable_type,
-        type: item.plannable_type,
-        dueDate: item.plannable_date,
-        courseName: item.context_name,
-        courseId: item.course_id,
-        pointsPossible: item.plannable?.points_possible,
-        htmlUrl: item.html_url,
-        submissionTypes: item.plannable?.submission_types || [],
-        description: item.plannable?.description || '',
-        completed: item.planner_override?.marked_complete || false
-      }));
-  }
-
-  /**
-   * Normalize todo items to a consistent format
-   */
-  normalizeTodoItems(items) {
-    return items.map(item => ({
-      id: item.assignment?.id || item.id,
-      title: item.assignment?.name || 'Untitled',
-      type: item.type || 'assignment',
-      dueDate: item.assignment?.due_at,
-      courseName: item.context_name,
-      courseId: item.course_id,
-      pointsPossible: item.assignment?.points_possible,
-      htmlUrl: item.html_url,
-      submissionTypes: item.assignment?.submission_types || [],
-      description: item.assignment?.description || '',
-      completed: false
+  private normalizeAssignments(
+    assignments: Assignment[],
+    course: Course
+  ): NormalizedAssignment[] {
+    return assignments.map(assignment => ({
+      id: assignment.id,
+      title: assignment.name,
+      type: 'assignment',
+      dueDate: assignment.due_at,
+      courseName: course.name,
+      courseId: course.id,
+      pointsPossible: assignment.points_possible,
+      htmlUrl: assignment.html_url,
+      submissionTypes: assignment.submission_types || [],
+      description: assignment.description || ''
     }));
   }
 
   /**
-   * Get the end of the current week (Sunday)
+   * Get all assignments due within the specified number of days
+   * This is the main method to call for fetching upcoming work
+   *
+   * @param daysAhead - Number of days to look ahead (default: 7)
+   * @returns Array of normalized assignments sorted by due date
    */
-  getEndOfWeek() {
-    const now = new Date();
-    const daysUntilSunday = 7 - now.getDay();
-    const endOfWeek = new Date(now);
-    endOfWeek.setDate(now.getDate() + daysUntilSunday);
-    endOfWeek.setHours(23, 59, 59, 999);
-    return endOfWeek.toISOString();
+  async getAssignmentsDueWithinDays(daysAhead: number = 7): Promise<NormalizedAssignment[]> {
+    console.log(`[Canvas-API] Fetching assignments due within ${daysAhead} days...`);
+
+    // Step 1: Get graded courses only
+    const gradedCourses = await this.getGradedCourses();
+
+    // Step 2: Fetch assignments for each course in parallel
+    const assignmentPromises = gradedCourses.map(async (course) => {
+      try {
+        const assignments = await this.fetchCourseAssignments(course.id);
+        const filteredAssignments = this.filterAssignmentsByDaysAhead(assignments, daysAhead);
+        console.log(filteredAssignments);
+        return this.normalizeAssignments(filteredAssignments, course);
+      } catch (error) {
+        console.warn(`[Canvas-API] Failed to fetch assignments for course ${course.id} (${course.name}):`, error);
+        return [];
+      }
+    });
+
+    const assignmentArrays = await Promise.all(assignmentPromises);
+    const allAssignments = assignmentArrays.flat();
+
+    // Step 3: Sort by due date
+    allAssignments.sort((a, b) => {
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    });
+
+    console.log(`[Canvas-API] Found ${allAssignments.length} assignments due within ${daysAhead} days`);
+    console.log(allAssignments);
+    return allAssignments;
+  }
+
+  /**
+   * Legacy method - kept for backwards compatibility
+   * @deprecated Use getGradedCourses() instead
+   */
+  async getCourses(): Promise<Course[]> {
+    return await this.fetchAllCourses();
+  }
+
+  /**
+   * Legacy method - kept for backwards compatibility
+   * @deprecated Use getAssignmentsDueWithinDays() instead
+   */
+  async getUpcomingAssignments(): Promise<NormalizedAssignment[]> {
+    return await this.getAssignmentsDueWithinDays(7);
   }
 }
 
