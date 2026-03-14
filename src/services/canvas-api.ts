@@ -253,6 +253,7 @@ export class CanvasAPI {
 
     console.log(`[Canvas-API] Found ${allAssignments.length} assignments due within ${daysAhead} days`);
     console.log(allAssignments);
+    
     return allAssignments;
   }
 
@@ -270,6 +271,7 @@ export class CanvasAPI {
    */
   async getUpcomingAssignments(): Promise<NormalizedAssignment[]> {
     return await this.getAssignmentsDueWithinDays(7);
+    
   }
 }
 

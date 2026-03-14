@@ -96,21 +96,29 @@ export function DebugPanel() {
 
   async function testSingleEstimation() {
     setIsRunning(true);
-    addLog('info', 'Starting single assignment test...');
-
-    const testAssignment = {
-      title: 'Test Quiz - Chapter 5 Review',
-      type: 'quiz',
-      courseName: 'Introduction to Computer Science',
-      pointsPossible: 25,
-      submissionTypes: ['online_quiz'],
-      description: '<p>This quiz covers chapter 5 material including arrays, loops, and basic algorithms.</p>'
-    };
+    addLog('info', 'Starting single assignment test with real Canvas data...');
 
     try {
+      // Fetch real assignments from Canvas
+      addLog('info', `Fetching assignments due within ${daysAhead} days from Canvas...`);
+      const fetchResponse = await chrome.runtime.sendMessage({
+        type: 'FETCH_ASSIGNMENTS_DAYS_AHEAD',
+        daysAhead
+      });
+
+      if (!fetchResponse.success || fetchResponse.assignments.length === 0) {
+        addLog('error', 'Failed to fetch assignments or no assignments found', fetchResponse.error);
+        setIsRunning(false);
+        return;
+      }
+
+      // Use the first assignment from the fetched results
+      const testAssignment = fetchResponse.assignments[0] as Record<string, unknown>;
+      addLog('success', `Using assignment: "${testAssignment.title}" from ${testAssignment.courseName}`);
+
       const startTime = Date.now();
 
-      // Build the prompt manually to show it
+      // Build the prompt using real assignment data
       const prompt = buildPrompt(testAssignment);
       addLog('request', 'Sending to Ollama', { prompt: prompt.substring(0, 200) + '...' });
 
@@ -156,7 +164,12 @@ export function DebugPanel() {
       addLog('success', `Parsed result: ${JSON.stringify(parsed)}`);
 
       const testResult: TestResult = {
-        assignment: testAssignment,
+        assignment: {
+          title: testAssignment.title as string,
+          type: testAssignment.type as string,
+          courseName: testAssignment.courseName as string,
+          pointsPossible: testAssignment.pointsPossible as number | undefined
+        },
         prompt,
         response: llmResponse,
         estimatedMinutes: parsed.minutes,
@@ -448,9 +461,15 @@ export function DebugPanel() {
             {"minutes": <number>, "reasoning": "<brief explanation>"}
 
             Be realistic - most assignments take between 30 minutes and 4 hours. Only estimate longer for major projects or papers.`;
-    const smallTestPrompt_8b = `Give time minutes estimation to complete:Course: Intro to AI, Description: Solve the 7 queens problem in chess in python.`;
-    const smallTestPrompt = `Random minutes 30-100 please`;
-    return smallTestPrompt;
+    const smallTestPrompt = `Estimate minutes for an assignment.
+                      Details:
+                      ${details}
+
+                      Return JSON:
+                      {"minutes": number, "reasoning": "short"}
+                      Typical assignments take 30–240 minutes.`;
+
+    return largePrompt;
   }
 
   return (
