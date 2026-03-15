@@ -49,6 +49,7 @@ export interface Settings {
   refreshInterval: number;
   lookaheadDays: number;
   injectBadges: boolean;
+  showSidebar: boolean;
 }
 
 export interface TimeEstimate {

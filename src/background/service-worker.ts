@@ -47,7 +47,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
  */
 async function refreshAssignmentsInBackground() {
   try {
-    const settings = await chrome.storage.sync.get(['canvasUrl', 'apiToken']);
+    const settings = await chrome.storage.sync.get(['canvasUrl', 'apiToken', 'lookaheadDays']);
 
     if (!settings.canvasUrl || !settings.apiToken) {
       console.log('Canvas not configured, skipping background refresh');
@@ -57,9 +57,18 @@ async function refreshAssignmentsInBackground() {
     const canvasAPI = new CanvasAPI();
     canvasAPI.configure(settings.canvasUrl, settings.apiToken);
 
-    const rawAssignments = await canvasAPI.getTodoItems();
+    // Use the lookaheadDays setting or default to 14 days
+    const daysAhead = settings.lookaheadDays || 14;
+    const rawAssignments = await canvasAPI.getAssignmentsDueWithinDays(daysAhead);
+
+    // Map assignments to convert null to undefined for pointsPossible
+    const mappedAssignments = rawAssignments.map(a => ({
+      ...a,
+      pointsPossible: a.pointsPossible ?? undefined
+    }));
+
     const timeEstimator = new TimeEstimator();
-    const assignments = await timeEstimator.estimateAll(rawAssignments);
+    const assignments = await timeEstimator.estimateAll(mappedAssignments);
 
     // Cache the results
     await chrome.storage.local.set({

@@ -30,7 +30,15 @@
   /**
    * Called when DOM is ready
    */
-  function onReady() {
+  async function onReady() {
+    // Check if badge injection is enabled
+    const settings = await chrome.storage.sync.get(['injectBadges']);
+
+    if (settings.injectBadges === false) {
+      console.log('Canvas Time Estimator: Badge injection disabled in settings');
+      return;
+    }
+
     // Initial injection
     injectTimeEstimates();
 
@@ -197,10 +205,16 @@
     }
 
     // Find best place to inject
-    const target = element.querySelector('.planner-item-link, .assignment-title, .ig-title') || element;
+    try {
+      const target = element.querySelector('.planner-item-link, .assignment-title, .ig-title') || element;
 
+      if (target !== null && target.parentNode !== null) {
+        target.parentNode.insertBefore(badge, target.nextSibling);
+      }
+    } catch (error) {
+      console.log('Error finding inject target ', error)
+    }
     // Insert after the title
-    target.parentNode.insertBefore(badge, target.nextSibling);
   }
 
   /**

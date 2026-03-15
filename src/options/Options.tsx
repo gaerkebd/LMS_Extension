@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS: Settings = {
   refreshInterval: 30,
   lookaheadDays: 14,
   injectBadges: true,
+  showSidebar: true,
 };
 
 export function Options() {
@@ -118,6 +119,7 @@ export function Options() {
           <PreferencesSection
             showNotifications={settings.showNotifications}
             injectBadges={settings.injectBadges}
+            showSidebar={settings.showSidebar}
             refreshInterval={settings.refreshInterval}
             lookaheadDays={settings.lookaheadDays}
             onChange={updateSettings}

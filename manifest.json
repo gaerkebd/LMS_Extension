@@ -35,6 +35,11 @@
       "matches": ["https://*.instructure.com/*"],
       "js": ["src/content/content-script.ts"],
       "css": ["content-styles.css"]
+    },
+    {
+      "matches": ["https://*.instructure.com/*"],
+      "js": ["src/content/sidebar-injector.tsx"],
+      "css": ["src/content/sidebar-styles.css"]
     }
   ],
   "options_page": "src/options/index.html",

@@ -48,7 +48,6 @@ src/
 ## Tasks Remaining
 
 ### High Priority
-- [ ] **Production prompt in debug panel** - `DebugPanel.tsx:453` returns `smallTestPrompt` instead of full prompt
 - [ ] **Badge injection preference** - Content script doesn't respect `injectBadges` setting
 
 ### Medium Priority

@@ -4,6 +4,7 @@ import type { Settings } from '../../types';
 interface PreferencesSectionProps {
   showNotifications: boolean;
   injectBadges: boolean;
+  showSidebar: boolean;
   refreshInterval: number;
   lookaheadDays: number;
   onChange: (updates: Partial<Settings>) => void;
@@ -12,6 +13,7 @@ interface PreferencesSectionProps {
 export function PreferencesSection({
   showNotifications,
   injectBadges,
+  showSidebar,
   refreshInterval,
   lookaheadDays,
   onChange,
@@ -58,6 +60,23 @@ export function PreferencesSection({
               </span>
               <p className="text-xs text-gray-500">
                 Inject time estimate badges directly into the Canvas interface
+              </p>
+            </div>
+          </label>
+
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showSidebar}
+              onChange={(e) => onChange({ showSidebar: e.target.checked })}
+              className="w-4 h-4 rounded border-gray-300 text-canvas-red focus:ring-canvas-red"
+            />
+            <div>
+              <span className="text-sm font-medium text-gray-700">
+                Show time estimator sidebar on Canvas
+              </span>
+              <p className="text-xs text-gray-500">
+                Display assignment time estimates in the Canvas right sidebar
               </p>
             </div>
           </label>
