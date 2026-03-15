@@ -78,6 +78,14 @@ export function CanvasSidebar() {
 
   const totalMinutes = assignments.reduce((sum, a) => sum + (a.estimatedMinutes || 0), 0);
 
+  // Helper to get time badge class
+  function getTimeBadgeClass(minutes: number | null): string {
+    if (!minutes) return '';
+    if (minutes >= 180) return 'high';
+    if (minutes >= 90) return 'medium';
+    return '';
+  }
+
   return (
     <div className="canvas-time-estimator-sidebar">
       <div className="cte-header">
@@ -113,6 +121,23 @@ export function CanvasSidebar() {
 
       {!collapsed && (
         <div className="cte-content">
+          {/* Summary always at top */}
+          <div className="cte-summary">
+            <div className="cte-summary-item">
+              <span className="cte-summary-value">
+                {loading ? '...' : assignments.length}
+              </span>
+              <span className="cte-summary-label">Assignments</span>
+            </div>
+            <div className="cte-summary-item">
+              <span className="cte-summary-value">
+                {loading ? '...' : formatTime(totalMinutes)}
+              </span>
+              <span className="cte-summary-label">Total Time</span>
+            </div>
+          </div>
+
+          {/* Content states below summary */}
           {loading && (
             <div className="cte-loading">
               <div className="cte-spinner"></div>
@@ -137,41 +162,28 @@ export function CanvasSidebar() {
           )}
 
           {!loading && !error && assignments.length > 0 && (
-            <>
-              <div className="cte-summary">
-                <div className="cte-summary-item">
-                  <span className="cte-summary-value">{assignments.length}</span>
-                  <span className="cte-summary-label">Assignments</span>
-                </div>
-                <div className="cte-summary-item">
-                  <span className="cte-summary-value">{formatTime(totalMinutes)}</span>
-                  <span className="cte-summary-label">Total Time</span>
-                </div>
-              </div>
-
-              <ul className="cte-assignment-list">
-                {assignments.map((assignment, idx) => (
-                  <li key={idx} className="cte-assignment-item">
-                    <a href={assignment.htmlUrl} className="cte-assignment-link">
-                      <div className="cte-assignment-header">
-                        <span className="cte-assignment-title">{assignment.title}</span>
-                        <span className="cte-assignment-time">
-                          {formatTime(assignment.estimatedMinutes)}
+            <ul className="cte-assignment-list">
+              {assignments.map((assignment, idx) => (
+                <li key={idx} className="cte-assignment-item">
+                  <a href={assignment.htmlUrl} className="cte-assignment-link">
+                    <div className="cte-assignment-header">
+                      <span className="cte-assignment-title">{assignment.title}</span>
+                      <span className={`cte-assignment-time ${getTimeBadgeClass(assignment.estimatedMinutes)}`}>
+                        {formatTime(assignment.estimatedMinutes)}
+                      </span>
+                    </div>
+                    <div className="cte-assignment-meta">
+                      <span className="cte-assignment-course">{assignment.courseName}</span>
+                      {assignment.dueDate && (
+                        <span className="cte-assignment-due">
+                          {formatDueDate(assignment.dueDate)}
                         </span>
-                      </div>
-                      <div className="cte-assignment-meta">
-                        <span className="cte-assignment-course">{assignment.courseName}</span>
-                        {assignment.dueDate && (
-                          <span className="cte-assignment-due">
-                            {formatDueDate(assignment.dueDate)}
-                          </span>
-                        )}
-                      </div>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </>
+                      )}
+                    </div>
+                  </a>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}

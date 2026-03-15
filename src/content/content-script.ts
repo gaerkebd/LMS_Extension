@@ -212,7 +212,7 @@
         target.parentNode.insertBefore(badge, target.nextSibling);
       }
     } catch (error) {
-      console.log('Error finding inject target ', error)
+      console.log('Canvas Time Estimator: Error finding inject target ', error)
     }
     // Insert after the title
   }

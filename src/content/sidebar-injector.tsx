@@ -48,20 +48,19 @@ import { CanvasSidebar } from './CanvasSidebar';
         return;
       }
 
+      // Find and hide the Canvas To Do list container
+      const todoContainer = rightSide.querySelector('.Sidebar__TodoListContainer');
+      if (todoContainer) {
+        (todoContainer as HTMLElement).style.display = 'none';
+        console.log('Canvas Time Estimator: Hidden Canvas To Do list');
+      }
+
       // Create container for our React app
       const container = document.createElement('div');
       container.id = 'canvas-time-estimator-container';
 
-      // Find the To Do list container to insert before it
-      const todoContainer = rightSide.querySelector('.Sidebar__TodoListContainer');
-
-      if (todoContainer) {
-        // Insert before the To Do list
-        rightSide.insertBefore(container, todoContainer);
-      } else {
-        // If To Do list not found, prepend to right sidebar
-        rightSide.prepend(container);
-      }
+      // Prepend to right sidebar (replaces the To Do list position)
+      rightSide.prepend(container);
 
       // Render the React component
       const root = createRoot(container);

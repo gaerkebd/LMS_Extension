@@ -39,7 +39,7 @@
     {
       "matches": ["https://*.instructure.com/*"],
       "js": ["src/content/sidebar-injector.tsx"],
-      "css": ["src/content/sidebar-styles.css"]
+      "css": ["sidebar-styles.css"]
     }
   ],
   "options_page": "src/options/index.html",
