@@ -8,7 +8,7 @@ interface AssignmentListProps {
 
 export function AssignmentList({ assignments }: AssignmentListProps) {
   // Group assignments by due date
-  const groupedAssignments = groupByDate(assignments);
+  const groupedAssignments = groupByDueLabel(assignments);
 
   return (
     <div className="space-y-4">
@@ -28,7 +28,7 @@ export function AssignmentList({ assignments }: AssignmentListProps) {
   );
 }
 
-function groupByDate(assignments: Assignment[]): Record<string, Assignment[]> {
+function groupByDueLabel(assignments: Assignment[]): Record<string, Assignment[]> {
   const groups: Record<string, Assignment[]> = {};
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());

@@ -5,6 +5,12 @@ import { WeeklySummary } from './components/WeeklySummary';
 import { EmptyState } from './components/EmptyState';
 import { LoadingState } from './components/LoadingState';
 import { ErrorState } from './components/ErrorState';
+import { TabBar, type PopupTab } from './components/TabBar';
+import { UsageMeter } from './components/UsageMeter';
+import { UpgradePrompt } from './components/UpgradePrompt';
+import { AnalyticsDashboard } from './components/AnalyticsDashboard';
+import { CalendarSchedule } from './components/CalendarSchedule';
+import { useFeatureGate } from '../hooks/useFeatureGate';
 import type { Assignment, AssignmentResponse } from '../types';
 
 type ViewState = 'loading' | 'empty' | 'error' | 'configured' | 'unconfigured';
@@ -14,6 +20,10 @@ export function Popup() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<PopupTab>('assignments');
+
+  const { isPremium, isTrial, isFree, remainingRefreshes, refresh: refreshGate } = useFeatureGate();
+  const hasPremiumAccess = isPremium || isTrial;
 
   useEffect(() => {
     loadAssignments();
@@ -24,7 +34,6 @@ export function Popup() {
     setError(null);
 
     try {
-      // Check if configured
       const settings = await chrome.storage.sync.get(['canvasUrl', 'apiToken']);
 
       if (!settings.canvasUrl || !settings.apiToken) {
@@ -32,9 +41,8 @@ export function Popup() {
         return;
       }
 
-      // Get assignments from background script
       const response: AssignmentResponse = await chrome.runtime.sendMessage({
-        type: 'GET_ASSIGNMENTS'
+        type: 'GET_ASSIGNMENTS',
       });
 
       if (response.error) {
@@ -62,6 +70,7 @@ export function Popup() {
     try {
       await chrome.runtime.sendMessage({ type: 'REFRESH_ASSIGNMENTS' });
       await loadAssignments();
+      refreshGate();
     } catch (err) {
       console.error('Failed to refresh:', err);
       setError('Failed to refresh assignments');
@@ -73,7 +82,6 @@ export function Popup() {
     chrome.runtime.openOptionsPage();
   }
 
-  // Calculate weekly totals
   const totalMinutes = assignments.reduce((sum, a) => sum + (a.estimatedMinutes || 0), 0);
   const assignmentCount = assignments.length;
 
@@ -83,49 +91,81 @@ export function Popup() {
         onRefresh={handleRefresh}
         onSettings={openOptions}
         lastUpdated={lastUpdated}
+        isPremium={isPremium}
+        remainingRefreshes={remainingRefreshes}
       />
 
+      <TabBar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        isPremium={hasPremiumAccess}
+      />
+
+      {isFree && activeTab === 'assignments' && (
+        <UsageMeter remaining={remainingRefreshes} isFree={isFree} />
+      )}
+
       <main className="flex-1 overflow-y-auto p-4">
-        {viewState === 'loading' && <LoadingState />}
-
-        {viewState === 'unconfigured' && (
-          <EmptyState
-            icon="⚙️"
-            title="Setup Required"
-            description="Connect your Canvas account to get started."
-            actionLabel="Open Settings"
-            onAction={openOptions}
-          />
-        )}
-
-        {viewState === 'empty' && (
-          <EmptyState
-            icon="🎉"
-            title="All Caught Up!"
-            description="No assignments due in the next 2 weeks."
-          />
-        )}
-
-        {viewState === 'error' && (
-          <ErrorState
-            message={error || 'Something went wrong'}
-            onRetry={loadAssignments}
-          />
-        )}
-
-        {viewState === 'configured' && (
+        {activeTab === 'assignments' && (
           <>
-            <WeeklySummary
-              totalMinutes={totalMinutes}
-              assignmentCount={assignmentCount}
-            />
-            <AssignmentList assignments={assignments} />
+            {viewState === 'loading' && <LoadingState />}
+
+            {viewState === 'unconfigured' && (
+              <EmptyState
+                icon="&#x2699;&#xFE0F;"
+                title="Setup Required"
+                description="Connect your Canvas account to get started."
+                actionLabel="Open Settings"
+                onAction={openOptions}
+              />
+            )}
+
+            {viewState === 'empty' && (
+              <EmptyState
+                icon="&#x1F389;"
+                title="All Caught Up!"
+                description="No assignments due in the next week."
+              />
+            )}
+
+            {viewState === 'error' && (
+              <ErrorState
+                message={error || 'Something went wrong'}
+                onRetry={loadAssignments}
+              />
+            )}
+
+            {viewState === 'configured' && (
+              <>
+                <WeeklySummary
+                  totalMinutes={totalMinutes}
+                  assignmentCount={assignmentCount}
+                />
+                <AssignmentList assignments={assignments} />
+              </>
+            )}
           </>
+        )}
+
+        {activeTab === 'analytics' && (
+          hasPremiumAccess ? (
+            <AnalyticsDashboard />
+          ) : (
+            <UpgradePrompt feature="Advanced Analytics" />
+          )
+        )}
+
+        {activeTab === 'calendar' && (
+          hasPremiumAccess ? (
+            <CalendarSchedule assignments={assignments} />
+          ) : (
+            <UpgradePrompt feature="Google Calendar Sync" />
+          )
         )}
       </main>
 
       <footer className="px-4 py-2 text-center text-xs text-gray-400 border-t border-gray-100">
-        Canvas Time Estimator v1.0.0
+        Canvas Time Estimator v1.1.0
       </footer>
     </div>
   );

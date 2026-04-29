@@ -8,6 +8,7 @@ interface PreferencesSectionProps {
   refreshInterval: number;
   lookaheadDays: number;
   onChange: (updates: Partial<Settings>) => void;
+  isFree?: boolean;
 }
 
 export function PreferencesSection({
@@ -17,6 +18,7 @@ export function PreferencesSection({
   refreshInterval,
   lookaheadDays,
   onChange,
+  isFree = false,
 }: PreferencesSectionProps) {
   return (
     <section className="card p-6">
@@ -112,9 +114,11 @@ export function PreferencesSection({
             className="input"
           >
             <option value={7}>1 week</option>
-            <option value={14}>2 weeks</option>
-            <option value={21}>3 weeks</option>
-            <option value={30}>1 month</option>
+            {!isFree && <option value={14}>2 weeks</option>}
+            {!isFree && <option value={21}>3 weeks</option>}
+            {!isFree && <option value={30}>1 month</option>}
+            {isFree && <option disabled value={14}>2 weeks (Premium)</option>}
+            {isFree && <option disabled value={30}>1 month (Premium)</option>}
           </select>
         </div>
       </div>

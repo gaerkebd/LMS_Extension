@@ -13,6 +13,9 @@
     processedAttr: 'data-time-estimated'
   };
 
+  // Track whether badges are enabled (re-checked on storage change)
+  let badgesEnabled = true;
+
   /**
    * Initialize the content script
    */
@@ -33,11 +36,20 @@
   async function onReady() {
     // Check if badge injection is enabled
     const settings = await chrome.storage.sync.get(['injectBadges']);
+    badgesEnabled = settings.injectBadges !== false;
 
-    if (settings.injectBadges === false) {
-      console.log('Canvas Time Estimator: Badge injection disabled in settings');
-      return;
-    }
+    // Listen for setting changes in real-time
+    chrome.storage.onChanged.addListener((changes) => {
+      if (changes.injectBadges) {
+        badgesEnabled = changes.injectBadges.newValue !== false;
+        if (!badgesEnabled) {
+          // Remove all existing badges when disabled
+          document.querySelectorAll(`.${CONFIG.badgeClass}`).forEach(b => b.remove());
+        }
+      }
+    });
+
+    if (!badgesEnabled) return;
 
     // Initial injection
     injectTimeEstimates();
@@ -53,6 +65,8 @@
    * Inject time estimates into assignment elements
    */
   async function injectTimeEstimates() {
+    if (!badgesEnabled) return;
+
     // Find assignment elements in the todo list / planner
     const assignmentElements = findAssignmentElements();
 

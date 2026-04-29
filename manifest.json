@@ -1,23 +1,34 @@
 {
   "manifest_version": 3,
   "name": "Canvas LMS Time Estimator",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AI-powered time estimation for Canvas LMS assignments. View your to-do list with estimated completion times.",
   "permissions": [
     "storage",
     "activeTab",
     "alarms",
-    "notifications"
+    "notifications",
+    "identity"
   ],
+  "oauth2": {
+    "client_id": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/calendar.readonly"
+    ]
+  },
   "host_permissions": [
     "https://*.instructure.com/*",
     "https://api.openai.com/*",
     "https://api.anthropic.com/*",
-    "http://localhost/*",
     "http://localhost:11434/*",
-    "http://127.0.0.1/*",
-    "http://10.*.*.*/*" 
+    "http://127.0.0.1:11434/*",
+    "https://api.stripe.com/*",
+    "https://www.googleapis.com/*"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
   "action": {
     "default_popup": "src/popup/index.html",
     "default_icon": {

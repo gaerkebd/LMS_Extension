@@ -5,7 +5,8 @@
       "Bash(curl:*)",
       "Bash(dir:*)",
       "Bash(findstr:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(*)"
     ]
   }
 }

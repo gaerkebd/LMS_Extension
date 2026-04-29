@@ -3,6 +3,8 @@
  * Uses AI to estimate how long assignments will take to complete
  */
 
+import { withRetry } from '../utils/rate-limiter';
+
 interface AssignmentInput {
   title?: string;
   type?: string;
@@ -62,15 +64,6 @@ export class TimeEstimator {
     this.aiProvider = settings.aiProvider || 'none';
     this.model = settings.estimationModel || 'gpt-3.5-turbo';
 
-    console.log('[TimeEstimator] Configure called with settings:', {
-      aiProvider: this.aiProvider,
-      model: this.model,
-      hasOpenAIKey: !!settings.openaiApiKey,
-      hasAnthropicKey: !!settings.anthropicApiKey,
-      localLlmUrl: settings.localLlmUrl,
-      localLlmModel: settings.localLlmModel
-    });
-
     if (this.aiProvider === 'openai') {
       this.apiKey = settings.openaiApiKey;
     } else if (this.aiProvider === 'anthropic') {
@@ -78,7 +71,6 @@ export class TimeEstimator {
     } else if (this.aiProvider === 'local') {
       this.localLlmUrl = settings.localLlmUrl || 'http://localhost:11434';
       this.localLlmModel = settings.localLlmModel || 'qwen2.5-coder:1.5b';
-      console.log('[TimeEstimator] Local LLM configured:', this.localLlmUrl, this.localLlmModel);
     }
   }
 
@@ -110,28 +102,17 @@ export class TimeEstimator {
     // Try AI estimation if configured
     const useAI = this.aiProvider === 'local' || (this.apiKey && (this.aiProvider === 'openai' || this.aiProvider === 'anthropic'));
 
-    console.log('[TimeEstimator] estimateSingle:', {
-      assignmentTitle: assignment.title,
-      aiProvider: this.aiProvider,
-      useAI,
-      hasApiKey: !!this.apiKey,
-      localLlmUrl: this.localLlmUrl
-    });
-
     if (useAI) {
       try {
-        console.log('[TimeEstimator] Calling AI estimation for:', assignment.title);
         const aiEstimate = await this.getAIEstimate(assignment);
         estimatedMinutes = aiEstimate.minutes;
         estimationMethod = 'ai';
-        console.log('[TimeEstimator] AI estimate result:', aiEstimate);
       } catch (error) {
         console.warn('[TimeEstimator] AI estimation failed, using heuristics:', error);
         estimatedMinutes = this.getHeuristicEstimate(assignment);
         estimationMethod = 'heuristic';
       }
     } else {
-      console.log('[TimeEstimator] Using heuristics (AI not configured)');
       estimatedMinutes = this.getHeuristicEstimate(assignment);
       estimationMethod = 'heuristic';
     }
@@ -150,15 +131,16 @@ export class TimeEstimator {
   async getAIEstimate(assignment: AssignmentInput): Promise<AIEstimateResult> {
     const prompt = this.buildPrompt(assignment);
 
-    if (this.aiProvider === 'openai') {
-      return await this.callOpenAI(prompt);
-    } else if (this.aiProvider === 'anthropic') {
-      return await this.callAnthropic(prompt);
-    } else if (this.aiProvider === 'local') {
-      return await this.callOllama(prompt);
-    }
-
-    throw new Error(`Unknown AI provider: ${this.aiProvider}`);
+    return withRetry(async () => {
+      if (this.aiProvider === 'openai') {
+        return await this.callOpenAI(prompt);
+      } else if (this.aiProvider === 'anthropic') {
+        return await this.callAnthropic(prompt);
+      } else if (this.aiProvider === 'local') {
+        return await this.callOllama(prompt);
+      }
+      throw new Error(`Unknown AI provider: ${this.aiProvider}`);
+    }, 2, 1000);
   }
 
   /**
@@ -192,81 +174,21 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
   }
 
   /**
-   * Call OpenAI API
+   * OpenAI API — not yet implemented.
+   * Falls back to heuristics automatically via getAIEstimate().
    */
-  async callOpenAI(prompt: string): Promise<AIEstimateResult> {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          { role: 'system', content: 'You are an academic workload estimation assistant. Always respond with valid JSON.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 150
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content;
-
-    try {
-      return JSON.parse(content);
-    } catch {
-      // Try to extract minutes from the response
-      const match = content.match(/(\d+)\s*minutes?/i);
-      if (match) {
-        return { minutes: parseInt(match[1]), reasoning: content };
-      }
-      throw new Error('Could not parse AI response');
-    }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async callOpenAI(_prompt: string): Promise<AIEstimateResult> {
+    throw new Error('OpenAI integration coming soon. Falling back to heuristics.');
   }
 
   /**
-   * Call Anthropic API
+   * Anthropic API — not yet implemented.
+   * Falls back to heuristics automatically via getAIEstimate().
    */
-  async callAnthropic(prompt: string): Promise<AIEstimateResult> {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.apiKey || '',
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 150,
-        messages: [
-          { role: 'user', content: prompt }
-        ]
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Anthropic API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.content[0]?.text;
-
-    try {
-      return JSON.parse(content);
-    } catch {
-      const match = content.match(/(\d+)\s*minutes?/i);
-      if (match) {
-        return { minutes: parseInt(match[1]), reasoning: content };
-      }
-      throw new Error('Could not parse AI response');
-    }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async callAnthropic(_prompt: string): Promise<AIEstimateResult> {
+    throw new Error('Anthropic integration coming soon. Falling back to heuristics.');
   }
 
   /**
@@ -274,11 +196,6 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
    */
   async callOllama(prompt: string): Promise<AIEstimateResult> {
     const url = `${this.localLlmUrl}/api/generate`;
-    console.log('[TimeEstimator] Calling Ollama:', {
-      url,
-      model: this.localLlmModel,
-      promptLength: prompt.length
-    });
 
     const response = await fetch(url, {
       method: 'POST',
@@ -295,17 +212,13 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
       })
     });
 
-    console.log('[TimeEstimator] Ollama response status:', response.status);
-
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[TimeEstimator] Ollama error:', errorText);
       throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
     const content = data.response;
-    console.log('[TimeEstimator] Ollama raw response:', content);
 
     try {
       // Try to parse JSON from the response

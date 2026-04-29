@@ -4,9 +4,11 @@ interface HeaderProps {
   onRefresh: () => void;
   onSettings: () => void;
   lastUpdated: number | null;
+  isPremium?: boolean;
+  remainingRefreshes?: number;
 }
 
-export function Header({ onRefresh, onSettings, lastUpdated }: HeaderProps) {
+export function Header({ onRefresh, onSettings, lastUpdated, isPremium = false, remainingRefreshes }: HeaderProps) {
   const formatLastUpdated = (timestamp: number | null): string => {
     if (!timestamp) return '';
 
@@ -27,9 +29,16 @@ export function Header({ onRefresh, onSettings, lastUpdated }: HeaderProps) {
     <header className="bg-gradient-to-r from-canvas-red to-red-600 text-white p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-xl">📚</span>
+          <span className="text-xl">&#x1F4DA;</span>
           <div>
-            <h1 className="font-semibold text-base">Canvas Time Estimator</h1>
+            <h1 className="font-semibold text-base">
+              Canvas Time Estimator
+              {isPremium && (
+                <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-400 text-yellow-900 rounded-full align-middle">
+                  PRO
+                </span>
+              )}
+            </h1>
             {lastUpdated && (
               <p className="text-xs text-white/70">
                 Updated {formatLastUpdated(lastUpdated)}
@@ -42,7 +51,9 @@ export function Header({ onRefresh, onSettings, lastUpdated }: HeaderProps) {
           <button
             onClick={onRefresh}
             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            title="Refresh assignments"
+            title={remainingRefreshes !== undefined && remainingRefreshes !== Infinity
+              ? `Refresh (${remainingRefreshes} AI refreshes left today)`
+              : 'Refresh assignments'}
           >
             <svg
               className="w-5 h-5"

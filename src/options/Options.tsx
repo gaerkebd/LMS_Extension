@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { AccountSection } from './components/AccountSection';
 import { CanvasSection } from './components/CanvasSection';
 import { AISection } from './components/AISection';
 import { PreferencesSection } from './components/PreferencesSection';
+import { useFeatureGate } from '../hooks/useFeatureGate';
 import type { Settings } from '../types';
 
 const DEFAULT_SETTINGS: Settings = {
@@ -24,6 +26,7 @@ export function Options() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [isDirty, setIsDirty] = useState(false);
+  const { isFree } = useFeatureGate();
 
   useEffect(() => {
     loadSettings();
@@ -100,6 +103,8 @@ export function Options() {
 
         {/* Settings Sections */}
         <div className="space-y-6">
+          <AccountSection />
+
           <CanvasSection
             canvasUrl={settings.canvasUrl}
             apiToken={settings.apiToken}
@@ -114,6 +119,7 @@ export function Options() {
             localLlmModel={settings.localLlmModel || 'llama3:8b'}
             model={settings.estimationModel}
             onChange={updateSettings}
+            isFree={isFree}
           />
 
           <PreferencesSection
@@ -123,6 +129,7 @@ export function Options() {
             refreshInterval={settings.refreshInterval}
             lookaheadDays={settings.lookaheadDays}
             onChange={updateSettings}
+            isFree={isFree}
           />
         </div>
 

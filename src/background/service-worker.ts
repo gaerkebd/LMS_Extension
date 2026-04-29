@@ -1,35 +1,47 @@
 /**
  * Background Service Worker
- * Handles background tasks, alarms, and message passing for the extension
+ * Handles background tasks, alarms, and message passing for the extension.
+ * Also enforces licensing/tier limits for AI refreshes.
  */
 
 import { CanvasAPI } from '../services/canvas-api';
 import { TimeEstimator } from '../services/time-estimator';
+import { licensingService } from '../services/licensing';
+import { analyticsService } from '../services/analytics';
+import { calendarService } from '../services/calendar';
 import type { Assignment } from '../types';
 
 // Constants
 const REFRESH_ALARM = 'refresh-assignments';
+const VALIDATE_LICENSE_ALARM = 'validate-license';
 const REFRESH_INTERVAL_MINUTES = 30;
+const LICENSE_CHECK_INTERVAL_MINUTES = 60 * 24; // once per day
 
 /**
  * Initialize the extension when installed or updated
  */
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('Canvas Time Estimator installed/updated:', details.reason);
-
   // Set up periodic refresh alarm
   await chrome.alarms.create(REFRESH_ALARM, {
-    periodInMinutes: REFRESH_INTERVAL_MINUTES
+    periodInMinutes: REFRESH_INTERVAL_MINUTES,
   });
 
-  // Initialize default settings if first install
+  // Set up daily license re-validation alarm
+  await chrome.alarms.create(VALIDATE_LICENSE_ALARM, {
+    periodInMinutes: LICENSE_CHECK_INTERVAL_MINUTES,
+  });
+
   if (details.reason === 'install') {
+    // Default settings
     await chrome.storage.sync.set({
       refreshInterval: REFRESH_INTERVAL_MINUTES,
       showNotifications: true,
-      aiProvider: 'openai',
-      estimationModel: 'gpt-3.5-turbo'
+      aiProvider: 'none',
+      estimationModel: 'gpt-4o-mini',
     });
+
+    // Start 7-day premium trial
+    await licensingService.startTrial();
   }
 });
 
@@ -39,47 +51,70 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === REFRESH_ALARM) {
     await refreshAssignmentsInBackground();
+  } else if (alarm.name === VALIDATE_LICENSE_ALARM) {
+    await licensingService.refreshValidation();
   }
 });
 
 /**
- * Refresh assignments in the background
+ * Refresh assignments in the background.
+ * Enforces AI refresh limits for free-tier users.
  */
 async function refreshAssignmentsInBackground() {
   try {
     const settings = await chrome.storage.sync.get(['canvasUrl', 'apiToken', 'lookaheadDays']);
 
     if (!settings.canvasUrl || !settings.apiToken) {
-      console.log('Canvas not configured, skipping background refresh');
       return;
     }
 
     const canvasAPI = new CanvasAPI();
     canvasAPI.configure(settings.canvasUrl, settings.apiToken);
 
-    // Use the lookaheadDays setting or default to 14 days
-    const daysAhead = settings.lookaheadDays || 14;
+    // Enforce lookahead cap based on tier
+    const maxLookahead = await licensingService.getMaxLookaheadDays();
+    const daysAhead = Math.min(settings.lookaheadDays || 14, maxLookahead);
     const rawAssignments = await canvasAPI.getAssignmentsDueWithinDays(daysAhead);
 
-    // Map assignments to convert null to undefined for pointsPossible
     const mappedAssignments = rawAssignments.map(a => ({
       ...a,
-      pointsPossible: a.pointsPossible ?? undefined
+      pointsPossible: a.pointsPossible ?? undefined,
     }));
 
+    // Check if AI refresh is allowed (free tier: 5/day)
+    const canUseAI = await licensingService.canUseAIRefresh();
+
     const timeEstimator = new TimeEstimator();
-    const assignments = await timeEstimator.estimateAll(mappedAssignments);
+    let assignments;
+
+    if (canUseAI) {
+      assignments = await timeEstimator.estimateAll(mappedAssignments);
+      // Only count AI refreshes if the provider is actually an AI (not 'none')
+      const aiSettings = await chrome.storage.sync.get(['aiProvider']);
+      if (aiSettings.aiProvider && aiSettings.aiProvider !== 'none') {
+        await licensingService.incrementAIRefreshCount();
+      }
+    } else {
+      // Free tier exhausted: use heuristics only
+      assignments = mappedAssignments.map(a => ({
+        ...a,
+        estimatedMinutes: timeEstimator.getHeuristicEstimate(a),
+        estimationMethod: 'heuristic',
+        estimatedAt: Date.now(),
+      }));
+    }
 
     // Cache the results
     await chrome.storage.local.set({
       cachedAssignments: assignments,
-      lastUpdated: Date.now()
+      lastUpdated: Date.now(),
     });
+
+    // Record analytics snapshot (for premium analytics dashboard)
+    await analyticsService.recordSnapshot(assignments);
 
     // Check for urgent assignments and notify
     await checkForUrgentAssignments(assignments);
-
-    console.log('Background refresh complete:', assignments.length, 'assignments');
   } catch (error) {
     console.error('Background refresh failed:', error);
   }
@@ -90,7 +125,6 @@ async function refreshAssignmentsInBackground() {
  */
 async function checkForUrgentAssignments(assignments: Array<{ dueDate?: string; [key: string]: unknown }>) {
   const settings = await chrome.storage.sync.get(['showNotifications']);
-
   if (!settings.showNotifications) return;
 
   const now = new Date();
@@ -98,7 +132,7 @@ async function checkForUrgentAssignments(assignments: Array<{ dueDate?: string; 
 
   const urgent = assignments.filter(a => {
     if (!a.dueDate) return false;
-    const dueDate = new Date(a.dueDate);
+    const dueDate = new Date(a.dueDate as string);
     return dueDate.getTime() - now.getTime() < twentyFourHours && dueDate > now;
   });
 
@@ -108,7 +142,7 @@ async function checkForUrgentAssignments(assignments: Array<{ dueDate?: string; 
       iconUrl: '../assets/icons/icon128.png',
       title: 'Canvas Assignments Due Soon',
       message: `You have ${urgent.length} assignment(s) due within 24 hours!`,
-      priority: 2
+      priority: 2,
     });
   }
 }
@@ -124,7 +158,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 /**
  * Process incoming messages
  */
-async function handleMessage(message: { type: string; assignment?: Partial<Assignment>; url?: string; token?: string; daysAhead?: number }, _sender: chrome.runtime.MessageSender) {
+async function handleMessage(
+  message: { type: string; assignment?: Partial<Assignment>; url?: string; token?: string; daysAhead?: number; subscriptionId?: string },
+  _sender: chrome.runtime.MessageSender,
+) {
   switch (message.type) {
     case 'GET_ASSIGNMENTS':
       return await getAssignments();
@@ -134,8 +171,7 @@ async function handleMessage(message: { type: string; assignment?: Partial<Assig
       return { success: true };
 
     case 'GET_CACHED_ASSIGNMENTS':
-      const cached = await chrome.storage.local.get(['cachedAssignments', 'lastUpdated']);
-      return cached;
+      return await chrome.storage.local.get(['cachedAssignments', 'lastUpdated']);
 
     case 'ESTIMATE_SINGLE':
       if (message.assignment) {
@@ -154,8 +190,56 @@ async function handleMessage(message: { type: string; assignment?: Partial<Assig
     case 'FETCH_ASSIGNMENTS_DAYS_AHEAD':
       return await fetchAssignmentsDaysAhead(message.daysAhead || 7);
 
+    // --- Licensing messages ---
+
+    case 'GET_USER_TIER':
+      return await licensingService.getCachedTier();
+
+    case 'VALIDATE_SUBSCRIPTION':
+      if (message.subscriptionId) {
+        return await licensingService.validateSubscription(message.subscriptionId);
+      }
+      return { error: 'No subscription ID provided' };
+
+    case 'GET_USAGE':
+      return await licensingService.getUsageCounters();
+
+    case 'CHECK_CAN_REFRESH':
+      return { canRefresh: await licensingService.canUseAIRefresh() };
+
+    case 'GET_FEATURE_FLAGS': {
+      const tier = await licensingService.getCachedTier();
+      return licensingService.getFeatureFlags(tier.tier);
+    }
+
+    case 'GET_ANALYTICS': {
+      const tier = await licensingService.getCachedTier();
+      const flags = licensingService.getFeatureFlags(tier.tier);
+      if (!flags.advancedAnalytics) {
+        return { error: 'Premium feature', history: [], summary: null };
+      }
+      const history = await analyticsService.getRecentHistory(14);
+      const summary = await analyticsService.getSummary(14);
+      return { history, summary };
+    }
+
+    case 'SYNC_CALENDAR': {
+      const tier = await licensingService.getCachedTier();
+      const flags = licensingService.getFeatureFlags(tier.tier);
+      if (!flags.calendarIntegration) {
+        return { error: 'Premium feature' };
+      }
+      try {
+        const cached = await chrome.storage.local.get(['cachedAssignments']);
+        const assignments = cached.cachedAssignments || [];
+        const blocks = await calendarService.autoSchedule(assignments);
+        return { blocks };
+      } catch (error) {
+        return { error: error instanceof Error ? error.message : 'Calendar sync failed' };
+      }
+    }
+
     default:
-      console.warn('Unknown message type:', message.type);
       return { error: 'Unknown message type' };
   }
 }
@@ -172,7 +256,7 @@ async function getAssignments() {
     return {
       assignments: cached.cachedAssignments,
       fromCache: true,
-      lastUpdated: cached.lastUpdated
+      lastUpdated: cached.lastUpdated,
     };
   }
 
@@ -182,7 +266,7 @@ async function getAssignments() {
   return {
     assignments: fresh.cachedAssignments || [],
     fromCache: false,
-    lastUpdated: fresh.lastUpdated
+    lastUpdated: fresh.lastUpdated,
   };
 }
 
@@ -201,7 +285,7 @@ async function testCanvasConnection(url: string, token: string) {
 }
 
 /**
- * Fetch assignments due within X days using the new Canvas API method
+ * Fetch assignments due within X days
  */
 async function fetchAssignmentsDaysAhead(daysAhead: number) {
   try {
@@ -215,18 +299,8 @@ async function fetchAssignmentsDaysAhead(daysAhead: number) {
     canvasAPI.configure(settings.canvasUrl, settings.apiToken);
 
     const assignments = await canvasAPI.getAssignmentsDueWithinDays(daysAhead);
-
-    return {
-      success: true,
-      assignments,
-      count: assignments.length,
-      daysAhead
-    };
+    return { success: true, assignments, count: assignments.length, daysAhead };
   } catch (error) {
-    console.error('Failed to fetch assignments:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
-
-// Log that service worker is running
-console.log('Canvas Time Estimator service worker initialized');

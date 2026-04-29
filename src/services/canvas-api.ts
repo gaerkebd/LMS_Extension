@@ -3,6 +3,8 @@
  * Handles all communication with the Canvas LMS API
  */
 
+import { canvasRateLimiter, withRetry } from '../utils/rate-limiter';
+
 interface Course {
   id: number;
   name: string;
@@ -77,11 +79,10 @@ export class CanvasAPI {
       ...options.headers
     };
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers
-      });
+    await canvasRateLimiter.acquire();
+
+    return withRetry(async () => {
+      const response = await fetch(url, { ...options, headers });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -89,10 +90,7 @@ export class CanvasAPI {
       }
 
       return await response.json();
-    } catch (error) {
-      console.error('Canvas API request failed:', error);
-      throw error;
-    }
+    });
   }
 
   /**
@@ -109,13 +107,6 @@ export class CanvasAPI {
   }
 
   /**
-   * Get current user information
-   */
-  async getCurrentUser(): Promise<unknown> {
-    return await this.request('/users/self');
-  }
-
-  /**
    * Get all active courses with enrollment scores
    */
   private async fetchAllCourses(): Promise<Course[]> {
@@ -127,7 +118,6 @@ export class CanvasAPI {
       'include[]': 'total_scores'
     });
 
-    console.log('[Canvas-API] Fetching all courses...');
     return await this.request<Course[]>(`/courses?${params}`);
   }
 
@@ -156,8 +146,6 @@ export class CanvasAPI {
     const allCourses = await this.fetchAllCourses();
     const gradedCourses = this.filterGradedCourses(allCourses);
 
-    console.log(`[Canvas-API] Found ${allCourses.length} total courses, ${gradedCourses.length} are graded`);
-    console.log(allCourses);
     return gradedCourses;
   }
 
@@ -223,8 +211,6 @@ export class CanvasAPI {
    * @returns Array of normalized assignments sorted by due date
    */
   async getAssignmentsDueWithinDays(daysAhead: number = 7): Promise<NormalizedAssignment[]> {
-    console.log(`[Canvas-API] Fetching assignments due within ${daysAhead} days...`);
-
     // Step 1: Get graded courses only
     const gradedCourses = await this.getGradedCourses();
 
@@ -233,7 +219,6 @@ export class CanvasAPI {
       try {
         const assignments = await this.fetchCourseAssignments(course.id);
         const filteredAssignments = this.filterAssignmentsByDaysAhead(assignments, daysAhead);
-        console.log(filteredAssignments);
         return this.normalizeAssignments(filteredAssignments, course);
       } catch (error) {
         console.warn(`[Canvas-API] Failed to fetch assignments for course ${course.id} (${course.name}):`, error);
@@ -251,28 +236,9 @@ export class CanvasAPI {
       return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
     });
 
-    console.log(`[Canvas-API] Found ${allAssignments.length} assignments due within ${daysAhead} days`);
-    console.log(allAssignments);
-    
     return allAssignments;
   }
 
-  /**
-   * Legacy method - kept for backwards compatibility
-   * @deprecated Use getGradedCourses() instead
-   */
-  async getCourses(): Promise<Course[]> {
-    return await this.fetchAllCourses();
-  }
-
-  /**
-   * Legacy method - kept for backwards compatibility
-   * @deprecated Use getAssignmentsDueWithinDays() instead
-   */
-  async getUpcomingAssignments(): Promise<NormalizedAssignment[]> {
-    return await this.getAssignmentsDueWithinDays(7);
-    
-  }
 }
 
 // Export singleton instance for convenience
