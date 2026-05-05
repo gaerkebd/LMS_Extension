@@ -87,7 +87,7 @@ export function CanvasSection({ canvasUrl, apiToken, onChange }: CanvasSectionPr
             <button
               type="button"
               onClick={() => setShowHelp(true)}
-              className="text-canvas-red hover:underline"
+              className="text-canvas-purple hover:underline"
             >
               How do I get an API token?
             </button>

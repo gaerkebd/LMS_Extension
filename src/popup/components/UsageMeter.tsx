@@ -25,7 +25,7 @@ export function UsageMeter({ remaining, isFree }: UsageMeterProps) {
             href={STRIPE_CONFIG.pricingPageUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-canvas-red font-medium hover:underline"
+            className="text-xs text-canvas-purple font-medium hover:underline"
           >
             Upgrade
           </a>

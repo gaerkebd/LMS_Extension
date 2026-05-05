@@ -73,7 +73,7 @@ export function AssignmentCard({ assignment }: AssignmentCardProps) {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-gray-800 truncate group-hover:text-canvas-red transition-colors">
+          <h4 className="font-medium text-gray-800 truncate group-hover:text-canvas-purple transition-colors">
             {assignment.title}
           </h4>
           <p className="text-xs text-gray-500 truncate mt-0.5">

@@ -26,14 +26,12 @@ This extension may communicate with the following services based on your configu
 |---------|-----------|-----------|
 | Canvas LMS API | Always (when configured) | API requests authenticated with your Canvas token |
 | OpenAI API | If selected as AI provider | Assignment metadata for estimation |
-| Anthropic API | If selected as AI provider | Assignment metadata for estimation |
 | Local LLM (Ollama) | If selected as AI provider | Assignment metadata (stays on your network) |
 | Stripe | If you purchase a subscription | Payment information (handled by Stripe) |
 | Google Calendar API | Premium feature, if enabled | Calendar free/busy data read; study block events created |
 
 Each third-party service is subject to its own privacy policy:
 - [OpenAI Privacy Policy](https://openai.com/privacy)
-- [Anthropic Privacy Policy](https://www.anthropic.com/privacy)
 - [Stripe Privacy Policy](https://stripe.com/privacy)
 - [Google Privacy Policy](https://policies.google.com/privacy)
 
@@ -52,7 +50,7 @@ All data is stored locally on your device using Chrome's extension storage:
 
 ## API Keys
 
-Your Canvas API token, OpenAI key, and Anthropic key are stored in Chrome's encrypted extension storage and transmitted directly to their respective APIs over HTTPS. They never pass through our servers.
+Your Canvas API token, and OpenAI key are stored in Chrome's encrypted extension storage and transmitted directly to their respective APIs over HTTPS. They never pass through our servers.
 
 ## Data Retention
 

@@ -5,7 +5,7 @@ A Chrome extension that integrates with Canvas LMS to display AI-powered time es
 ## Features
 
 - **To-Do Integration**: Automatically fetches your Canvas assignments and to-do items
-- **AI Time Estimation**: Uses OpenAI or Anthropic to intelligently estimate assignment completion times
+- **AI Time Estimation**: Uses OpenAI to intelligently estimate assignment completion times
 - **Weekly Summary**: View total assignments and estimated hours for the week
 - **In-Page Badges**: Time estimates appear directly on Canvas assignment pages
 - **Smart Notifications**: Get notified about urgent assignments due within 24 hours
@@ -99,11 +99,6 @@ For more accurate time estimates, configure an AI provider:
 **OpenAI:**
 1. Get an API key from [OpenAI Platform](https://platform.openai.com/api-keys)
 2. Select "OpenAI" as provider in extension settings
-3. Enter your API key
-
-**Anthropic:**
-1. Get an API key from [Anthropic Console](https://console.anthropic.com/)
-2. Select "Anthropic" as provider in extension settings
 3. Enter your API key
 
 ## How It Works
@@ -215,5 +210,5 @@ MIT License - see LICENSE file for details
 ## Acknowledgments
 
 - Canvas LMS API documentation
-- OpenAI and Anthropic for AI capabilities
+- OpenAI for AI capabilities
 - Chrome Extensions documentation

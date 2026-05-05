@@ -2,6 +2,11 @@
  * Background Service Worker
  * Handles background tasks, alarms, and message passing for the extension.
  * Also enforces licensing/tier limits for AI refreshes.
+ *
+ * Storage layout (chrome.storage.local):
+ *   cachedAssignments : AssignmentInput[]   — assignment metadata
+ *   aiEstimateResults : AIEstimateResult[]  — estimates keyed by assignmentID
+ *   lastUpdated       : number              — epoch ms of last successful refresh
  */
 
 import { CanvasAPI } from '../services/canvas-api';
@@ -9,7 +14,7 @@ import { TimeEstimator } from '../services/time-estimator';
 import { licensingService } from '../services/licensing';
 import { analyticsService } from '../services/analytics';
 import { calendarService } from '../services/calendar';
-import type { Assignment } from '../types';
+import type { Assignment, AssignmentInput, AIEstimateResult } from '../types';
 
 // Constants
 const REFRESH_ALARM = 'refresh-assignments';
@@ -21,18 +26,15 @@ const LICENSE_CHECK_INTERVAL_MINUTES = 60 * 24; // once per day
  * Initialize the extension when installed or updated
  */
 chrome.runtime.onInstalled.addListener(async (details) => {
-  // Set up periodic refresh alarm
   await chrome.alarms.create(REFRESH_ALARM, {
     periodInMinutes: REFRESH_INTERVAL_MINUTES,
   });
 
-  // Set up daily license re-validation alarm
   await chrome.alarms.create(VALIDATE_LICENSE_ALARM, {
     periodInMinutes: LICENSE_CHECK_INTERVAL_MINUTES,
   });
 
   if (details.reason === 'install') {
-    // Default settings
     await chrome.storage.sync.set({
       refreshInterval: REFRESH_INTERVAL_MINUTES,
       showNotifications: true,
@@ -40,7 +42,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       estimationModel: 'gpt-4o-mini',
     });
 
-    // Start 7-day premium trial
     await licensingService.startTrial();
   }
 });
@@ -57,8 +58,72 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 });
 
 /**
+ * Shape returned by CanvasAPI.getAssignmentsDueWithinDays (NormalizedAssignment
+ * is a private interface in canvas-api.ts, so we match it structurally).
+ */
+interface CanvasNormalized {
+  id: number;
+  title: string;
+  type: string;
+  dueDate: string | null;
+  courseName: string;
+  courseId: number;
+  pointsPossible: number | null;
+  htmlUrl: string;
+  submissionTypes: string[];
+  description: string;
+}
+
+/**
+ * Map a normalized Canvas assignment to the leaner AssignmentInput shape.
+ */
+function toAssignmentInput(a: CanvasNormalized): AssignmentInput {
+  return {
+    assignmentID: a.id,
+    title: a.title,
+    type: a.type,
+    courseName: a.courseName,
+    courseId: a.courseId,
+    dueDate: a.dueDate ?? '',
+    htmlUrl: a.htmlUrl,
+    pointsPossible: a.pointsPossible ?? undefined,
+    submissionTypes: a.submissionTypes,
+    description: a.description,
+  };
+}
+
+/**
+ * Merge AssignmentInput[] + AIEstimateResult[] back into Assignment[] for
+ * consumers that still expect the combined shape (popup, analytics, etc.).
+ */
+function mergeToAssignments(
+  inputs: AssignmentInput[],
+  estimates: AIEstimateResult[],
+): Assignment[] {
+  const estimateMap = new Map(estimates.map(e => [e.assignmentID, e]));
+
+  return inputs.map(input => {
+    const estimate = estimateMap.get(input.assignmentID);
+    return {
+      id: input.assignmentID,
+      title: input.title,
+      type: input.type as Assignment['type'],
+      courseName: input.courseName,
+      courseId: input.courseId,
+      dueDate: input.dueDate,
+      htmlUrl: input.htmlUrl,
+      description: input.description || '',
+      pointsPossible: input.pointsPossible || 0,
+      submissionTypes: input.submissionTypes || [],
+      estimatedMinutes: estimate?.minutes ?? null,
+      estimationConfidence: null,
+    };
+  });
+}
+
+/**
  * Refresh assignments in the background.
- * Enforces AI refresh limits for free-tier users.
+ * Writes cachedAssignments and aiEstimateResults to chrome.storage.local.
  */
 async function refreshAssignmentsInBackground() {
   try {
@@ -71,50 +136,46 @@ async function refreshAssignmentsInBackground() {
     const canvasAPI = new CanvasAPI();
     canvasAPI.configure(settings.canvasUrl, settings.apiToken);
 
-    // Enforce lookahead cap based on tier
     const maxLookahead = await licensingService.getMaxLookaheadDays();
     const daysAhead = Math.min(settings.lookaheadDays || 14, maxLookahead);
     const rawAssignments = await canvasAPI.getAssignmentsDueWithinDays(daysAhead);
 
-    const mappedAssignments = rawAssignments.map(a => ({
-      ...a,
-      pointsPossible: a.pointsPossible ?? undefined,
-    }));
+    // Convert to the lean AssignmentInput shape
+    const inputAssignments: AssignmentInput[] = rawAssignments.map(toAssignmentInput);
 
-    // Check if AI refresh is allowed (free tier: 5/day)
     const canUseAI = await licensingService.canUseAIRefresh();
-
     const timeEstimator = new TimeEstimator();
-    let assignments;
+
+    let aiEstimateResults: AIEstimateResult[];
 
     if (canUseAI) {
-      assignments = await timeEstimator.estimateAll(mappedAssignments);
-      // Only count AI refreshes if the provider is actually an AI (not 'none')
+      aiEstimateResults = await timeEstimator.estimateAll(inputAssignments);
       const aiSettings = await chrome.storage.sync.get(['aiProvider']);
       if (aiSettings.aiProvider && aiSettings.aiProvider !== 'none') {
         await licensingService.incrementAIRefreshCount();
       }
     } else {
-      // Free tier exhausted: use heuristics only
-      assignments = mappedAssignments.map(a => ({
-        ...a,
-        estimatedMinutes: timeEstimator.getHeuristicEstimate(a),
-        estimationMethod: 'heuristic',
-        estimatedAt: Date.now(),
+      // Free tier exhausted — heuristics only
+      aiEstimateResults = inputAssignments.map(a => ({
+        assignmentID: a.assignmentID,
+        minutes: timeEstimator.getHeuristicEstimate(a),
       }));
     }
 
-    // Cache the results
+    // Persist the split cache
     await chrome.storage.local.set({
-      cachedAssignments: assignments,
+      cachedAssignments: inputAssignments,
+      aiEstimateResults,
       lastUpdated: Date.now(),
     });
 
-    // Record analytics snapshot (for premium analytics dashboard)
-    await analyticsService.recordSnapshot(assignments);
-
-    // Check for urgent assignments and notify
-    await checkForUrgentAssignments(assignments);
+    // Analytics only needs courseName + estimatedMinutes
+    const analyticsInput = aiEstimateResults.map(e => {
+      const input = inputAssignments.find(a => a.assignmentID === e.assignmentID);
+      return { courseName: input?.courseName, estimatedMinutes: e.minutes };
+    });
+    await analyticsService.recordSnapshot(analyticsInput);
+    await checkForUrgentAssignments(inputAssignments);
   } catch (error) {
     console.error('Background refresh failed:', error);
   }
@@ -123,7 +184,7 @@ async function refreshAssignmentsInBackground() {
 /**
  * Check for urgent assignments and send notifications
  */
-async function checkForUrgentAssignments(assignments: Array<{ dueDate?: string; [key: string]: unknown }>) {
+async function checkForUrgentAssignments(assignments: AssignmentInput[]) {
   const settings = await chrome.storage.sync.get(['showNotifications']);
   if (!settings.showNotifications) return;
 
@@ -132,7 +193,7 @@ async function checkForUrgentAssignments(assignments: Array<{ dueDate?: string; 
 
   const urgent = assignments.filter(a => {
     if (!a.dueDate) return false;
-    const dueDate = new Date(a.dueDate as string);
+    const dueDate = new Date(a.dueDate);
     return dueDate.getTime() - now.getTime() < twentyFourHours && dueDate > now;
   });
 
@@ -159,10 +220,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
  * Process incoming messages
  */
 async function handleMessage(
-  message: { type: string; assignment?: Partial<Assignment>; url?: string; token?: string; daysAhead?: number; subscriptionId?: string },
+  message: {
+    type: string;
+    assignment?: Partial<Assignment>;
+    url?: string;
+    token?: string;
+    daysAhead?: number;
+    subscriptionId?: string;
+  },
   _sender: chrome.runtime.MessageSender,
 ) {
   switch (message.type) {
+    case 'OPEN_OPTIONS_PAGE':
+      chrome.runtime.openOptionsPage();
+      return { success: true };
+
     case 'GET_ASSIGNMENTS':
       return await getAssignments();
 
@@ -170,14 +242,39 @@ async function handleMessage(
       await refreshAssignmentsInBackground();
       return { success: true };
 
-    case 'GET_CACHED_ASSIGNMENTS':
-      return await chrome.storage.local.get(['cachedAssignments', 'lastUpdated']);
+    case 'GET_CACHED_ASSIGNMENTS': {
+      const stored = await chrome.storage.local.get(['cachedAssignments', 'aiEstimateResults', 'lastUpdated']);
+      // Return both raw arrays AND a merged array for any consumer that needs it
+      return {
+        cachedAssignments: stored.cachedAssignments || [],
+        aiEstimateResults: stored.aiEstimateResults || [],
+        lastUpdated: stored.lastUpdated,
+      };
+    }
 
     case 'ESTIMATE_SINGLE':
       if (message.assignment) {
         const estimator = new TimeEstimator();
-        const estimate = await estimator.estimateSingle(message.assignment);
-        return estimate;
+        // ESTIMATE_SINGLE is called by the badge content-script which doesn't
+        // have a Canvas assignmentID — use 0 as a placeholder.
+        const input: AssignmentInput = {
+          assignmentID:
+            typeof message.assignment.id === 'number'
+              ? message.assignment.id
+              : parseInt(String(message.assignment.id ?? 0), 10),
+          title: message.assignment.title || '',
+          type: message.assignment.type || 'assignment',
+          courseName: message.assignment.courseName || '',
+          courseId: message.assignment.courseId || 0,
+          dueDate: message.assignment.dueDate || '',
+          htmlUrl: message.assignment.htmlUrl || '',
+          pointsPossible: message.assignment.pointsPossible ?? undefined,
+          submissionTypes: message.assignment.submissionTypes,
+          description: message.assignment.description,
+        };
+        const result = await estimator.estimateSingle(input);
+        // Expose estimatedMinutes for backward-compat with the badge content-script
+        return { ...result, estimatedMinutes: result.minutes };
       }
       return { error: 'No assignment provided' };
 
@@ -230,9 +327,12 @@ async function handleMessage(
         return { error: 'Premium feature' };
       }
       try {
-        const cached = await chrome.storage.local.get(['cachedAssignments']);
-        const assignments = cached.cachedAssignments || [];
-        const blocks = await calendarService.autoSchedule(assignments);
+        const stored = await chrome.storage.local.get(['cachedAssignments', 'aiEstimateResults']);
+        const merged = mergeToAssignments(
+          stored.cachedAssignments || [],
+          stored.aiEstimateResults || [],
+        );
+        const blocks = await calendarService.autoSchedule(merged);
         return { blocks };
       } catch (error) {
         return { error: error instanceof Error ? error.message : 'Calendar sync failed' };
@@ -245,26 +345,29 @@ async function handleMessage(
 }
 
 /**
- * Get assignments (from cache or fresh fetch)
+ * Get assignments (from cache or fresh fetch).
+ * Returns merged Assignment[] for backward compat with the popup.
  */
 async function getAssignments() {
-  const cached = await chrome.storage.local.get(['cachedAssignments', 'lastUpdated']);
-  const cacheAge = Date.now() - (cached.lastUpdated || 0);
+  const stored = await chrome.storage.local.get(['cachedAssignments', 'aiEstimateResults', 'lastUpdated']);
+  const cacheAge = Date.now() - (stored.lastUpdated || 0);
   const maxCacheAge = 5 * 60 * 1000; // 5 minutes
 
-  if (cached.cachedAssignments && cacheAge < maxCacheAge) {
+  const hasCache = stored.cachedAssignments && stored.aiEstimateResults;
+
+  if (hasCache && cacheAge < maxCacheAge) {
     return {
-      assignments: cached.cachedAssignments,
+      assignments: mergeToAssignments(stored.cachedAssignments, stored.aiEstimateResults),
       fromCache: true,
-      lastUpdated: cached.lastUpdated,
+      lastUpdated: stored.lastUpdated,
     };
   }
 
   await refreshAssignmentsInBackground();
-  const fresh = await chrome.storage.local.get(['cachedAssignments', 'lastUpdated']);
+  const fresh = await chrome.storage.local.get(['cachedAssignments', 'aiEstimateResults', 'lastUpdated']);
 
   return {
-    assignments: fresh.cachedAssignments || [],
+    assignments: mergeToAssignments(fresh.cachedAssignments || [], fresh.aiEstimateResults || []),
     fromCache: false,
     lastUpdated: fresh.lastUpdated,
   };

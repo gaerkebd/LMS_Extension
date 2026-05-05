@@ -11,7 +11,6 @@ const DEFAULT_SETTINGS: Settings = {
   apiToken: '',
   aiProvider: 'none',
   openaiApiKey: '',
-  anthropicApiKey: '',
   localLlmUrl: 'http://localhost:11434',
   localLlmModel: 'llama3:8b',
   estimationModel: 'gpt-4o-mini',
@@ -114,7 +113,6 @@ export function Options() {
           <AISection
             provider={settings.aiProvider}
             openaiKey={settings.openaiApiKey || ''}
-            anthropicKey={settings.anthropicApiKey || ''}
             localLlmUrl={settings.localLlmUrl || 'http://localhost:11434'}
             localLlmModel={settings.localLlmModel || 'llama3:8b'}
             model={settings.estimationModel}

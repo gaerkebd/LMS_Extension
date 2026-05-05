@@ -37,7 +37,7 @@ export function PreferencesSection({
               type="checkbox"
               checked={showNotifications}
               onChange={(e) => onChange({ showNotifications: e.target.checked })}
-              className="w-4 h-4 rounded border-gray-300 text-canvas-red focus:ring-canvas-red"
+              className="w-4 h-4 rounded border-gray-300 text-canvas-purple focus:ring-canvas-purple"
             />
             <div>
               <span className="text-sm font-medium text-gray-700">
@@ -54,7 +54,7 @@ export function PreferencesSection({
               type="checkbox"
               checked={injectBadges}
               onChange={(e) => onChange({ injectBadges: e.target.checked })}
-              className="w-4 h-4 rounded border-gray-300 text-canvas-red focus:ring-canvas-red"
+              className="w-4 h-4 rounded border-gray-300 text-canvas-purple focus:ring-canvas-purple"
             />
             <div>
               <span className="text-sm font-medium text-gray-700">
@@ -71,7 +71,7 @@ export function PreferencesSection({
               type="checkbox"
               checked={showSidebar}
               onChange={(e) => onChange({ showSidebar: e.target.checked })}
-              className="w-4 h-4 rounded border-gray-300 text-canvas-red focus:ring-canvas-red"
+              className="w-4 h-4 rounded border-gray-300 text-canvas-purple focus:ring-canvas-purple"
             />
             <div>
               <span className="text-sm font-medium text-gray-700">

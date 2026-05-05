@@ -4,8 +4,8 @@
 
 /* Base styles for extension popups */
 :root {
-  --color-primary: #e63946;
-  --color-primary-dark: #d62839;
+  --color-primary: #667eea;
+  --color-primary-dark: #764ba2;
   --color-success: #22c55e;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
@@ -41,8 +41,8 @@ body {
   }
 
   .btn-primary {
-    @apply bg-canvas-red text-white hover:bg-red-700;
-    @apply focus:ring-canvas-red;
+    @apply bg-canvas-purple text-white hover:bg-red-700;
+    @apply focus:ring-canvas-purple;
   }
 
   .btn-secondary {
@@ -60,7 +60,7 @@ body {
 
   .input {
     @apply w-full px-3 py-2 border border-gray-200 rounded-lg;
-    @apply focus:outline-none focus:ring-2 focus:ring-canvas-red focus:border-transparent;
+    @apply focus:outline-none focus:ring-2 focus:ring-canvas-purple focus:border-transparent;
     @apply placeholder-gray-400;
   }
 

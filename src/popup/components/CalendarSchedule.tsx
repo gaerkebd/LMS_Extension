@@ -92,7 +92,7 @@ export function CalendarSchedule({ assignments }: CalendarScheduleProps) {
       <button
         onClick={handleAutoSchedule}
         disabled={scheduling || schedulableCount === 0}
-        className="px-4 py-2 bg-canvas-red text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+        className="px-4 py-2 bg-canvas-purple text-white text-sm font-medium rounded-lg hover:bg-[#5a6fd6] transition-colors disabled:opacity-50"
       >
         {scheduling ? 'Scheduling...' : 'Schedule Study Blocks'}
       </button>

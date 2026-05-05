@@ -8,6 +8,7 @@ export default {
       colors: {
         canvas: {
           red: '#e63946',
+          purple: '#667eea',
           dark: '#1d1d1d',
           gray: '#6b7280',
         },

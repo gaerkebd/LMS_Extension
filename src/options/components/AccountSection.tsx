@@ -67,7 +67,7 @@ export function AccountSection() {
             href={STRIPE_CONFIG.pricingPageUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-canvas-red font-medium hover:underline"
+            className="text-canvas-purple font-medium hover:underline"
           >
             Upgrade to Premium
           </a>
@@ -81,7 +81,7 @@ export function AccountSection() {
             href={STRIPE_CONFIG.customerPortalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-canvas-red hover:underline"
+            className="text-sm text-canvas-purple hover:underline"
           >
             Manage subscription
           </a>

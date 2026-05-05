@@ -26,7 +26,7 @@ export function Header({ onRefresh, onSettings, lastUpdated, isPremium = false, 
   };
 
   return (
-    <header className="bg-gradient-to-r from-canvas-red to-red-600 text-white p-4">
+    <header className="bg-gradient-to-r from-canvas-purple to-[#764ba2] text-white p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-xl">&#x1F4DA;</span>

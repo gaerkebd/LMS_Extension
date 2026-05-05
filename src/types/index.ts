@@ -39,9 +39,8 @@ export interface AssignmentResponse {
 export interface Settings {
   canvasUrl: string;
   apiToken: string;
-  aiProvider: 'none' | 'openai' | 'anthropic' | 'local';
+  aiProvider: 'none' | 'openai' | 'local';
   openaiApiKey?: string;
-  anthropicApiKey?: string;
   localLlmUrl?: string;
   localLlmModel?: string;
   estimationModel: string;
@@ -86,12 +85,12 @@ export interface FeatureFlags {
 }
 
 export const FREE_TIER_LIMITS = {
-  maxAIRefreshesPerDay: 5,
-  maxLookaheadDays: 7,
-  allowedModels: ['gpt-4o-mini', 'gpt-3.5-turbo', 'claude-3-haiku-20240307', 'qwen2.5-coder:1.5b', 'llama3:8b'],
+  maxAIRefreshesPerDay: 1,
+  maxLookaheadDays: 2,
+  allowedModels: ['gpt-4o-mini', 'gpt-3.5-turbo', 'qwen2.5-coder:1.5b', 'llama3:8b'],
 } as const;
 
-export const PREMIUM_MODELS = ['gpt-4o', 'claude-3-5-sonnet-20241022'] as const;
+export const PREMIUM_MODELS = ['gpt-4o'] as const;
 
 export interface AnalyticsEntry {
   date: string; // YYYY-MM-DD
@@ -103,9 +102,43 @@ export interface AnalyticsEntry {
 export interface CalendarStudyBlock {
   assignmentId: string | number;
   assignmentTitle: string;
+  date: string;
   startTime: string; // ISO
   endTime: string; // ISO
   durationMinutes: number;
+}
+
+// === Assignment Input & AI Estimate (shared between estimator, service worker, and sidebar) ===
+
+/**
+ * Lightweight assignment descriptor used as input to the time estimator and
+ * stored in chrome.storage.local as `cachedAssignments`.
+ * Every entry MUST have a unique assignmentID so it can be joined with
+ * its corresponding AIEstimateResult.
+ */
+export interface AssignmentInput {
+  assignmentID: number;
+  title: string;
+  type: string;
+  courseName: string;
+  courseId: number;
+  dueDate: string;
+  htmlUrl: string;
+  pointsPossible?: number;
+  submissionTypes?: string[];
+  description?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * The AI (or heuristic) estimate result for one assignment.
+ * Stored in chrome.storage.local as `aiEstimateResults`.
+ * Linked to an AssignmentInput via `assignmentID`.
+ */
+export interface AIEstimateResult {
+  assignmentID: number;
+  minutes: number;
+  reasoning?: string;
 }
 
 // === Stripe Config ===

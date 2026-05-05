@@ -1,58 +1,132 @@
-import React, { useEffect, useState } from 'react';
-import type { Assignment, AssignmentResponse } from '../types';
+import { useEffect, useState } from 'react';
+import type { AssignmentInput, AIEstimateResult } from '../types';
+
+/**
+ * Merged view of one assignment — combines AssignmentInput metadata with its
+ * AIEstimateResult via assignmentID so each source stays small in storage.
+ */
+interface DisplayAssignment {
+  assignmentID: number;
+  title: string;
+  courseName: string;
+  dueDate: string;
+  htmlUrl: string;
+  type: string;
+  estimatedMinutes: number | null;
+  reasoning?: string;
+}
+
+function mergeData(
+  inputs: AssignmentInput[],
+  estimates: AIEstimateResult[],
+): DisplayAssignment[] {
+  const estimateMap = new Map(estimates.map(e => [e.assignmentID, e]));
+  return inputs.map(input => {
+    const estimate = estimateMap.get(input.assignmentID);
+    return {
+      assignmentID: input.assignmentID,
+      title: input.title,
+      courseName: input.courseName,
+      dueDate: input.dueDate,
+      htmlUrl: input.htmlUrl,
+      type: input.type,
+      estimatedMinutes: estimate?.minutes ?? null,
+      reasoning: estimate?.reasoning,
+    };
+  });
+}
 
 export function CanvasSidebar() {
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [assignments, setAssignments] = useState<DisplayAssignment[]>([]);
+  // loading is only true when there is literally no cache yet
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    loadAssignments();
+    loadFromCache();
+
+    // React to background refreshes that happen while the sidebar is open
+    const onStorageChanged = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+      if (changes.cachedAssignments || changes.aiEstimateResults) {
+        loadFromCache();
+      }
+    };
+    chrome.storage.local.onChanged.addListener(onStorageChanged);
+    return () => chrome.storage.local.onChanged.removeListener(onStorageChanged);
   }, []);
 
-  async function loadAssignments() {
-    setLoading(true);
-    setError(null);
-
+  /**
+   * Read directly from chrome.storage.local — no service-worker round-trip
+   * needed for display, so the sidebar renders instantly from cache.
+   * If there is no cache at all, kick off a background refresh.
+   */
+  async function loadFromCache() {
     try {
       const settings = await chrome.storage.sync.get(['canvasUrl', 'apiToken']);
 
       if (!settings.canvasUrl || !settings.apiToken) {
         setError('Extension not configured');
-        setLoading(false);
         return;
       }
 
-      const response: AssignmentResponse = await chrome.runtime.sendMessage({
-        type: 'GET_ASSIGNMENTS'
-      });
+      const stored = await chrome.storage.local.get([
+        'cachedAssignments',
+        'aiEstimateResults',
+      ]);
 
-      if (response.error) {
-        throw new Error(response.error);
+      if (stored.cachedAssignments && stored.aiEstimateResults) {
+        // Cache exists — render immediately, no spinner needed
+        setAssignments(mergeData(stored.cachedAssignments, stored.aiEstimateResults));
+        setError(null);
+      } else {
+        // No cache at all — show spinner and trigger a fresh fetch
+        setLoading(true);
+        await triggerBackgroundRefresh();
       }
-
-      setAssignments(response.assignments || []);
     } catch (err) {
-      console.error('Failed to load assignments:', err);
       setError(err instanceof Error ? err.message : 'Failed to load assignments');
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleRefresh() {
+  /**
+   * Tell the service worker to fetch fresh data.
+   * After it writes to storage, read back and update state.
+   * We send the message but don't depend on the service worker being awake
+   * for the initial display (that already happened via loadFromCache).
+   */
+  async function triggerBackgroundRefresh() {
     try {
       await chrome.runtime.sendMessage({ type: 'REFRESH_ASSIGNMENTS' });
-      await loadAssignments();
+      const stored = await chrome.storage.local.get([
+        'cachedAssignments',
+        'aiEstimateResults',
+      ]);
+      if (stored.cachedAssignments && stored.aiEstimateResults) {
+        setAssignments(mergeData(stored.cachedAssignments, stored.aiEstimateResults));
+        setError(null);
+      }
     } catch (err) {
-      console.error('Failed to refresh:', err);
-      setError('Failed to refresh');
+      console.error('Background refresh failed:', err);
+      setError('Failed to refresh assignments');
+    }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    setError(null);
+    try {
+      await triggerBackgroundRefresh();
+    } finally {
+      setRefreshing(false);
     }
   }
 
   function openOptions() {
-    chrome.runtime.openOptionsPage();
+    chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS_PAGE' });
   }
 
   function formatTime(minutes: number | null): string {
@@ -64,6 +138,7 @@ export function CanvasSidebar() {
   }
 
   function formatDueDate(dueDate: string): string {
+    if (!dueDate) return '';
     const date = new Date(dueDate);
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
@@ -76,9 +151,6 @@ export function CanvasSidebar() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
-  const totalMinutes = assignments.reduce((sum, a) => sum + (a.estimatedMinutes || 0), 0);
-
-  // Helper to get time badge class
   function getTimeBadgeClass(minutes: number | null): string {
     if (!minutes) return '';
     if (minutes >= 180) return 'high';
@@ -86,33 +158,38 @@ export function CanvasSidebar() {
     return '';
   }
 
+  const totalMinutes = assignments.reduce(
+    (sum, a) => sum + (a.estimatedMinutes || 0),
+    0,
+  );
+
   return (
     <div className="canvas-time-estimator-sidebar">
       <div className="cte-header">
-        <h2 className="cte-title">
-          <span className="cte-icon">⏱️</span>
-          Time Estimates
-        </h2>
+        <h2 className="cte-title">Time Estimates</h2>
         <div className="cte-actions">
           <button
             onClick={handleRefresh}
-            className="cte-btn-icon"
+            className={`cte-btn-icon${refreshing ? ' cte-btn-refreshing' : ''}`}
             title="Refresh"
-            disabled={loading}
+            disabled={loading || refreshing}
           >
-            🔄
+            {refreshing ? (
+              <>
+                <span className="cte-btn-spinner"></span>
+                Refreshing...
+              </>
+            ) : (
+              '🔄'
+            )}
           </button>
-          <button
-            onClick={openOptions}
-            className="cte-btn-icon"
-            title="Settings"
-          >
+          <button onClick={openOptions} className="cte-btn-icon" title="Settings">
             ⚙️
           </button>
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="cte-btn-icon"
-            title={collapsed ? "Expand" : "Collapse"}
+            title={collapsed ? 'Expand' : 'Collapse'}
           >
             {collapsed ? '▼' : '▲'}
           </button>
@@ -121,27 +198,35 @@ export function CanvasSidebar() {
 
       {!collapsed && (
         <div className="cte-content">
-          {/* Summary always at top */}
+          {/* Summary row — always visible once we have any data */}
           <div className="cte-summary">
             <div className="cte-summary-item">
               <span className="cte-summary-value">
-                {loading ? '...' : assignments.length}
+                {loading ? '?' : assignments.length}
               </span>
               <span className="cte-summary-label">Assignments</span>
             </div>
             <div className="cte-summary-item">
               <span className="cte-summary-value">
-                {loading ? '...' : formatTime(totalMinutes)}
+                {loading ? '?' : formatTime(totalMinutes)}
               </span>
               <span className="cte-summary-label">Total Time</span>
             </div>
           </div>
 
-          {/* Content states below summary */}
+          {/* Spinner only when there is genuinely no cached data yet */}
           {loading && (
             <div className="cte-loading">
               <div className="cte-spinner"></div>
               <p>Loading assignments...</p>
+            </div>
+          )}
+
+          {/* Refreshing overlay — shows on top of the existing list */}
+          {refreshing && !loading && (
+            <div className="cte-loading">
+              <div className="cte-spinner"></div>
+              <p>Refreshing...</p>
             </div>
           )}
 
@@ -163,12 +248,14 @@ export function CanvasSidebar() {
 
           {!loading && !error && assignments.length > 0 && (
             <ul className="cte-assignment-list">
-              {assignments.map((assignment, idx) => (
-                <li key={idx} className="cte-assignment-item">
+              {assignments.map(assignment => (
+                <li key={assignment.assignmentID} className="cte-assignment-item">
                   <a href={assignment.htmlUrl} className="cte-assignment-link">
                     <div className="cte-assignment-header">
                       <span className="cte-assignment-title">{assignment.title}</span>
-                      <span className={`cte-assignment-time ${getTimeBadgeClass(assignment.estimatedMinutes)}`}>
+                      <span
+                        className={`cte-assignment-time ${getTimeBadgeClass(assignment.estimatedMinutes)}`}
+                      >
                         {formatTime(assignment.estimatedMinutes)}
                       </span>
                     </div>

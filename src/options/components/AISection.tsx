@@ -9,7 +9,6 @@ const OLLAMA_MODELS = [
 interface AISectionProps {
   provider: Settings['aiProvider'];
   openaiKey: string;
-  anthropicKey: string;
   localLlmUrl: string;
   localLlmModel: string;
   model: string;
@@ -62,7 +61,6 @@ export function AISection({ provider, localLlmUrl, localLlmModel, model, onChang
             <option value="none">None (Use heuristics only)</option>
             <option value="local">Local LLM (Ollama)</option>
             <option value="openai" disabled>OpenAI (GPT) — Coming Soon</option>
-            <option value="anthropic" disabled>Anthropic (Claude) — Coming Soon</option>
           </select>
         </div>
 

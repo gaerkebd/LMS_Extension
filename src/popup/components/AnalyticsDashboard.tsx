@@ -81,7 +81,7 @@ export function AnalyticsDashboard() {
               <div key={i} className="flex-1 flex flex-col items-center">
                 <div className="w-full relative" style={{ height: '60px' }}>
                   <div
-                    className="absolute bottom-0 w-full bg-canvas-red/80 rounded-t"
+                    className="absolute bottom-0 w-full bg-canvas-purple/80 rounded-t"
                     style={{ height: `${Math.max(pct, 4)}%` }}
                     title={`${hours.toFixed(1)}h`}
                   />
@@ -107,7 +107,7 @@ export function AnalyticsDashboard() {
               </div>
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-canvas-red/70 rounded-full"
+                  className="h-full bg-canvas-purple/70 rounded-full"
                   style={{ width: `${(course.minutes / maxCourseMinutes) * 100}%` }}
                 />
               </div>

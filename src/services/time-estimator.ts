@@ -4,18 +4,10 @@
  */
 
 import { withRetry } from '../utils/rate-limiter';
+import type { AssignmentInput, AIEstimateResult } from '../types';
 
-interface AssignmentInput {
-  title?: string;
-  type?: string;
-  courseName?: string;
-  pointsPossible?: number;
-  submissionTypes?: string[];
-  description?: string;
-  [key: string]: unknown;
-}
-
-interface AIEstimateResult {
+/** Raw response from an AI endpoint before we attach the assignmentID. */
+interface RawAIResponse {
   minutes: number;
   reasoning?: string;
 }
@@ -55,7 +47,6 @@ export class TimeEstimator {
     const settings = await chrome.storage.sync.get([
       'aiProvider',
       'openaiApiKey',
-      'anthropicApiKey',
       'localLlmUrl',
       'localLlmModel',
       'estimationModel'
@@ -66,8 +57,6 @@ export class TimeEstimator {
 
     if (this.aiProvider === 'openai') {
       this.apiKey = settings.openaiApiKey;
-    } else if (this.aiProvider === 'anthropic') {
-      this.apiKey = settings.anthropicApiKey;
     } else if (this.aiProvider === 'local') {
       this.localLlmUrl = settings.localLlmUrl || 'http://localhost:11434';
       this.localLlmModel = settings.localLlmModel || 'qwen2.5-coder:1.5b';
@@ -75,71 +64,65 @@ export class TimeEstimator {
   }
 
   /**
-   * Estimate time for all assignments
+   * Estimate time for all assignments.
+   * Returns one AIEstimateResult per input, keyed by assignmentID.
    */
-  async estimateAll(assignments: AssignmentInput[]): Promise<AssignmentInput[]> {
+  async estimateAll(assignments: AssignmentInput[]): Promise<AIEstimateResult[]> {
     await this.configure();
 
-    const estimatedAssignments: AssignmentInput[] = [];
+    const results: AIEstimateResult[] = [];
 
     for (const assignment of assignments) {
-      const estimated = await this.estimateSingle(assignment);
-      estimatedAssignments.push(estimated);
+      const result = await this.estimateSingle(assignment);
+      results.push(result);
     }
 
-    return estimatedAssignments;
+    return results;
   }
 
   /**
-   * Estimate time for a single assignment
+   * Estimate time for a single assignment.
+   * Returns an AIEstimateResult with the assignmentID linked.
    */
-  async estimateSingle(assignment: AssignmentInput): Promise<AssignmentInput> {
+  async estimateSingle(assignment: AssignmentInput): Promise<AIEstimateResult> {
     await this.configure();
 
-    let estimatedMinutes: number;
-    let estimationMethod: string;
-
-    // Try AI estimation if configured
-    const useAI = this.aiProvider === 'local' || (this.apiKey && (this.aiProvider === 'openai' || this.aiProvider === 'anthropic'));
+    const useAI =
+      this.aiProvider === 'local' ||
+      (this.apiKey && this.aiProvider === 'openai');
 
     if (useAI) {
       try {
-        const aiEstimate = await this.getAIEstimate(assignment);
-        estimatedMinutes = aiEstimate.minutes;
-        estimationMethod = 'ai';
+        return await this.getAIEstimate(assignment);
       } catch (error) {
         console.warn('[TimeEstimator] AI estimation failed, using heuristics:', error);
-        estimatedMinutes = this.getHeuristicEstimate(assignment);
-        estimationMethod = 'heuristic';
       }
-    } else {
-      estimatedMinutes = this.getHeuristicEstimate(assignment);
-      estimationMethod = 'heuristic';
     }
 
     return {
-      ...assignment,
-      estimatedMinutes,
-      estimationMethod,
-      estimatedAt: Date.now()
+      assignmentID: assignment.assignmentID,
+      minutes: this.getHeuristicEstimate(assignment),
     };
   }
 
   /**
-   * Get AI-powered time estimate
+   * Get AI-powered time estimate and attach the assignmentID.
    */
   async getAIEstimate(assignment: AssignmentInput): Promise<AIEstimateResult> {
     const prompt = this.buildPrompt(assignment);
 
     return withRetry(async () => {
+      let raw: RawAIResponse;
+
       if (this.aiProvider === 'openai') {
-        return await this.callOpenAI(prompt);
-      } else if (this.aiProvider === 'anthropic') {
-        return await this.callAnthropic(prompt);
+        raw = await this.callOpenAI(prompt);
       } else if (this.aiProvider === 'local') {
-        return await this.callOllama(prompt);
+        raw = await this.callOllama(prompt);
+      } else {
+        throw new Error(`Unknown AI provider: ${this.aiProvider}`);
       }
-      throw new Error(`Unknown AI provider: ${this.aiProvider}`);
+
+      return { assignmentID: assignment.assignmentID, ...raw };
     }, 2, 1000);
   }
 
@@ -175,26 +158,17 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
 
   /**
    * OpenAI API — not yet implemented.
-   * Falls back to heuristics automatically via getAIEstimate().
+   * Falls back to heuristics automatically via estimateSingle().
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async callOpenAI(_prompt: string): Promise<AIEstimateResult> {
+  async callOpenAI(_prompt: string): Promise<RawAIResponse> {
     throw new Error('OpenAI integration coming soon. Falling back to heuristics.');
-  }
-
-  /**
-   * Anthropic API — not yet implemented.
-   * Falls back to heuristics automatically via getAIEstimate().
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async callAnthropic(_prompt: string): Promise<AIEstimateResult> {
-    throw new Error('Anthropic integration coming soon. Falling back to heuristics.');
   }
 
   /**
    * Call Ollama API (local LLM)
    */
-  async callOllama(prompt: string): Promise<AIEstimateResult> {
+  async callOllama(prompt: string): Promise<RawAIResponse> {
     const url = `${this.localLlmUrl}/api/generate`;
 
     const response = await fetch(url, {
@@ -221,26 +195,23 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
     const content = data.response;
 
     try {
-      // Try to parse JSON from the response
       const jsonMatch = content.match(/\{[\s\S]*"minutes"[\s\S]*\}/);
       if (jsonMatch) {
         return JSON.parse(jsonMatch[0]);
       }
       throw new Error('No JSON found');
     } catch {
-      // Try to extract minutes from the response
       const match = content.match(/(\d+)\s*minutes?/i);
       if (match) {
         return { minutes: parseInt(match[1]), reasoning: content };
       }
-      // Default fallback
       console.warn('Could not parse Ollama response, using default estimate');
       return { minutes: 60, reasoning: 'Could not parse LLM response' };
     }
   }
 
   /**
-   * Get heuristic-based time estimate (fallback)
+   * Get heuristic-based time estimate (fallback). Returns minutes only.
    */
   getHeuristicEstimate(assignment: AssignmentInput): number {
     const type = this.categorizeAssignment(assignment);
@@ -248,23 +219,20 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
 
     let minutes = rules.base;
 
-    // Adjust based on points
     if (typeof assignment.pointsPossible === 'number') {
       minutes += assignment.pointsPossible * rules.perPoint;
     }
 
-    // Adjust based on submission types
     if (Array.isArray(assignment.submissionTypes)) {
       if (assignment.submissionTypes.includes('online_upload')) {
-        minutes += 15; // Time for formatting and uploading
+        minutes += 15;
       }
       if (assignment.submissionTypes.includes('media_recording')) {
-        minutes += 30; // Recording takes extra time
+        minutes += 30;
       }
     }
 
-    // Cap at reasonable limits
-    return Math.min(Math.max(minutes, 15), 480); // 15 min to 8 hours
+    return Math.min(Math.max(minutes, 15), 480);
   }
 
   /**
@@ -274,12 +242,12 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
     const title = (assignment.title || '').toLowerCase();
     const type = (assignment.type || '').toLowerCase();
 
-    if (type === 'quiz' || title.includes('quiz')) return 'quiz';
-    if (type === 'discussion' || title.includes('discussion')) return 'discussion';
-    if (title.includes('essay') || title.includes('paper')) return 'essay';
-    if (title.includes('project') || title.includes('presentation')) return 'project';
-    if (title.includes('exam') || title.includes('test') || title.includes('midterm') || title.includes('final')) return 'exam';
-    if (title.includes('reading') || title.includes('read')) return 'reading';
+    if (type === 'quiz' || /[Qq]uiz/.test(title)) return 'quiz';
+    if (type === 'discussion' || /[Dd]iscussion/.test(title)) return 'discussion';
+    if (/[Ee]ssay/.test(title) || /[Pp]aper/.test(title)) return 'essay';
+    if (/[Pp]roject/.test(title) || /[Pp]resentation/.test(title)) return 'project';
+    if (/[Ee]xam/.test(title) || /[Tt]est/.test(title) || /[Mm]idterm/.test(title) || /[Ff]inal/.test(title)) return 'exam';
+    if (/[Rr]eading/.test(title) || /[Rr]ead/.test(title)) return 'reading';
 
     return 'assignment';
   }

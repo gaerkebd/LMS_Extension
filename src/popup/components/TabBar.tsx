@@ -23,7 +23,7 @@ export function TabBar({ activeTab, onTabChange, isPremium }: TabBarProps) {
           onClick={() => onTabChange(tab.id)}
           className={`flex-1 py-2 text-xs font-medium text-center transition-colors relative ${
             activeTab === tab.id
-              ? 'text-canvas-red border-b-2 border-canvas-red'
+              ? 'text-canvas-purple border-b-2 border-canvas-purple'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >

@@ -21,7 +21,7 @@ The extension is feature-complete and functional. Recent work focused on the deb
 |---------|--------|-------|
 | Canvas API Integration | Done | Fetches courses & assignments, filters by due date |
 | Heuristic Time Estimation | Done | Rule-based fallback, works without AI |
-| AI Time Estimation | Done | OpenAI, Anthropic, Ollama (local) supported |
+| AI Time Estimation | Done | OpenAI, Ollama (local) supported |
 | Popup UI | Done | Assignment list, weekly summary, grouped by due date |
 | Options Page | Done | Canvas settings, AI config, user preferences |
 | Content Script | Done | Badge injection into Canvas pages |

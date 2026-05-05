@@ -67,7 +67,7 @@ LMS_Extension/
 
 3. TIME ESTIMATION
    service-worker.ts -> TimeEstimator.estimateAll(assignments)
-   - If AI configured: sends to OpenAI/Anthropic API
+   - If AI configured: sends to OpenAI API
    - Otherwise: uses heuristic rules (type, points, keywords)
 
 4. CACHING
@@ -150,7 +150,7 @@ Add new message types:
 
 chrome.storage.sync (settings - synced across devices):
   - canvasUrl, apiToken
-  - aiProvider, openaiApiKey, anthropicApiKey, estimationModel
+  - aiProvider, openaiApiKey, estimationModel
   - showNotifications, refreshInterval, lookaheadDays, injectBadges
 
 chrome.storage.local (cache - local only):

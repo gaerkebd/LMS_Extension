@@ -16,7 +16,7 @@ export function UpgradePrompt({ feature, compact = false }: UpgradePromptProps) 
             href={STRIPE_CONFIG.pricingPageUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-canvas-red font-medium hover:underline"
+            className="text-canvas-purple font-medium hover:underline"
           >
             Upgrade
           </a>
@@ -36,7 +36,7 @@ export function UpgradePrompt({ feature, compact = false }: UpgradePromptProps) 
         href={STRIPE_CONFIG.pricingPageUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-block px-4 py-2 bg-canvas-red text-white text-xs font-medium rounded-lg hover:bg-red-700 transition-colors"
+        className="inline-block px-4 py-2 bg-canvas-purple text-white text-xs font-medium rounded-lg hover:bg-[#5a6fd6] transition-colors"
       >
         Upgrade - $3.99/mo
       </a>
