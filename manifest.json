@@ -7,23 +7,14 @@
     "storage",
     "activeTab",
     "alarms",
-    "notifications",
-    "identity"
+    "notifications"
   ],
-  "oauth2": {
-    "client_id": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
-    "scopes": [
-      "https://www.googleapis.com/auth/calendar.events",
-      "https://www.googleapis.com/auth/calendar.readonly"
-    ]
-  },
   "host_permissions": [
     "https://*.instructure.com/*",
     "https://api.openai.com/*",
-    "http://localhost:11434/*",
-    "http://127.0.0.1:11434/*",
-    "https://api.stripe.com/*",
-    "https://www.googleapis.com/*"
+    "https://www.googleapis.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"
@@ -31,9 +22,9 @@
   "action": {
     "default_popup": "src/popup/index.html",
     "default_icon": {
-      "16": "assets/icons/icon16.jpg",
-      "48": "assets/icons/icon48.jpg",
-      "128": "assets/icons/icon128.jpg"
+      "16": "assets/icons/icon16.png",
+      "48": "assets/icons/icon48.png",
+      "128": "assets/icons/icon128.png"
     }
   },
   "background": {
@@ -54,8 +45,8 @@
   ],
   "options_page": "src/options/index.html",
   "icons": {
-    "16": "assets/icons/icon16.jpg",
-    "48": "assets/icons/icon48.jpg",
-    "128": "assets/icons/icon128.jpg"
+    "16": "assets/icons/icon16.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
   }
 }

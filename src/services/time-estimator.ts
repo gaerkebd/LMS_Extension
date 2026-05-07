@@ -158,7 +158,15 @@ Be realistic - most assignments take between 30 minutes and 4 hours. Only estima
 
   /**
    * OpenAI API — not yet implemented.
-   * Falls back to heuristics automatically via estimateSingle().
+   *
+   * This intentionally throws so that the try/catch in estimateSingle() catches it
+   * and falls back to getHeuristicEstimate(). The fallback path is:
+   *   estimateSingle() → getAIEstimate() → callOpenAI() throws
+   *     └→ caught by estimateSingle()'s catch block → getHeuristicEstimate() is used instead
+   *
+   * TODO: implement by POSTing `prompt` to https://api.openai.com/v1/chat/completions
+   *       with the user-supplied `this.apiKey` (already read from chrome.storage.sync).
+   *       The key is NEVER hardcoded here — it is always user-supplied BYOK.
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async callOpenAI(_prompt: string): Promise<RawAIResponse> {

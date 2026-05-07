@@ -143,11 +143,26 @@ export interface AIEstimateResult {
 
 // === Stripe Config ===
 
+/**
+ * REQUIRED BEFORE LAUNCH — all three values below are placeholders.
+ * The extension will NOT validate premium subscriptions until these are replaced.
+ * When the backend URL is a placeholder, validateSubscription() will always fail
+ * and fall back to the cached tier (graceful degradation, but premium never activates).
+ *
+ * TODO (pre-CWS launch):
+ *  1. backendUrl       — deploy the Cloudflare Worker (or equivalent serverless function)
+ *                        that proxies Stripe subscription validation using your Stripe secret key,
+ *                        then replace this with its real *.workers.dev (or custom) URL.
+ *  2. pricingPageUrl   — replace with the real Stripe Checkout / pricing page URL
+ *                        (e.g. https://buy.stripe.com/<price_id> or your hosted checkout link).
+ *  3. customerPortalUrl — replace the placeholder portal ID segment with your real
+ *                        Stripe Customer Portal configuration ID
+ *                        (found in Stripe Dashboard → Billing → Customer portal → Configuration ID).
+ */
 export const STRIPE_CONFIG = {
-  // Replace with your actual backend URL when deployed
-  backendUrl: 'https://your-backend.workers.dev',
-  pricingPageUrl: 'https://your-stripe-checkout-url.com',
-  customerPortalUrl: 'https://billing.stripe.com/p/login/your-portal-id',
+  backendUrl: 'https://your-backend.workers.dev',        // TODO: replace with real Cloudflare Worker URL
+  pricingPageUrl: 'https://your-stripe-checkout-url.com', // TODO: replace with real Stripe Checkout URL
+  customerPortalUrl: 'https://billing.stripe.com/p/login/your-portal-id', // TODO: replace portal ID segment
 } as const;
 
 // Message types for chrome.runtime.sendMessage

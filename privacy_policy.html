@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Canvas LMS Time Estimator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background: #f9f9f9;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 3rem 2.5rem;
+    }
+
+    header { margin-bottom: 2.5rem; border-bottom: 2px solid #e0e0e0; padding-bottom: 1.5rem; }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 0.4rem;
+    }
+
+    header p {
+      color: #555;
+      font-size: 0.95rem;
+    }
+
+    h2 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #111;
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+    }
+
+    p { margin-bottom: 0.9rem; color: #333; }
+
+    ul {
+      margin: 0.5rem 0 0.9rem 1.5rem;
+      color: #333;
+    }
+
+    ul li { margin-bottom: 0.4rem; }
+
+    .highlight-box {
+      background: #f0f7ff;
+      border-left: 4px solid #2563eb;
+      border-radius: 4px;
+      padding: 1rem 1.25rem;
+      margin: 1.25rem 0;
+    }
+
+    .highlight-box p { margin: 0; color: #1e3a5f; font-weight: 500; }
+
+    .not-collected {
+      background: #f0fdf4;
+      border-left: 4px solid #16a34a;
+    }
+
+    .not-collected p { color: #14532d; }
+
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .placeholder {
+      background: #fffbeb;
+      border: 1px dashed #d97706;
+      border-radius: 3px;
+      padding: 0 4px;
+      font-family: monospace;
+      font-size: 0.9em;
+      color: #92400e;
+    }
+
+    footer {
+      margin-top: 2.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #e0e0e0;
+      font-size: 0.875rem;
+      color: #777;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Privacy Policy</h1>
+      <p>Canvas LMS Time Estimator &mdash; Chrome Extension</p>
+      <p>Effective date: <strong>May 6, 2026</strong></p>
+    </header>
+
+    <div class="highlight-box">
+      <p>Short version: Canvas LMS Time Estimator does not collect, transmit, or sell your personal data. Everything stays on your device unless you explicitly configure a third-party service.</p>
+    </div>
+
+    <!-- 1. Overview -->
+    <h2>1. Overview</h2>
+    <p>
+      Canvas LMS Time Estimator ("the Extension") is a Chrome browser extension that helps students
+      estimate the time required to complete Canvas LMS assignments. This policy explains what
+      information the Extension accesses, how that information is stored, and when — if ever — it
+      is shared with third parties.
+    </p>
+
+    <!-- 2. Data Collected -->
+    <h2>2. What Data Is Accessed and Stored</h2>
+    <p>The Extension accesses only the data that is necessary to provide its features:</p>
+
+    <ul>
+      <li>
+        <strong>Canvas LMS URL and API token</strong> — You provide your own Canvas instance URL
+        and a personal API token. These are stored in <code>chrome.storage.sync</code> (synced
+        across your Chrome profile) and are used solely to fetch your assignment data from Canvas
+        on your behalf.
+      </li>
+      <li>
+        <strong>Assignment data</strong> — Assignment titles, descriptions, due dates, and point
+        values retrieved from the Canvas REST API are cached in <code>chrome.storage.local</code>
+        on your device to generate time estimates.
+      </li>
+      <li>
+        <strong>Time estimates and usage counters</strong> — Generated time estimates and internal
+        usage counters (e.g., number of estimates run) are stored in
+        <code>chrome.storage.local</code> on your device.
+      </li>
+      <li>
+        <strong>OpenAI API key (optional)</strong> — If you choose to enable AI-powered estimates,
+        you may supply your own OpenAI API key. It is stored in
+        <code>chrome.storage.sync</code> and is sent <em>only</em> to OpenAI's servers when you
+        trigger an AI estimate. The developer never receives this key.
+      </li>
+      <li>
+        <strong>Google account (optional, premium)</strong> — If you enable Google Calendar
+        integration, the Extension uses Chrome's built-in OAuth2 flow
+        (<code>chrome.identity</code>) to request limited calendar access. No Google credentials
+        are stored by the Extension itself.
+      </li>
+    </ul>
+
+    <!-- 3. How Data Is Stored -->
+    <h2>3. How Data Is Stored</h2>
+    <p>
+      All data described above is stored exclusively using the Chrome browser's built-in storage
+      APIs (<code>chrome.storage.sync</code> and <code>chrome.storage.local</code>). This means:
+    </p>
+    <ul>
+      <li>Data stays on your device (and within your Chrome profile if sync is enabled).</li>
+      <li>The developer has no server-side access to any of your stored data.</li>
+      <li>
+        You can clear all stored data at any time by removing the Extension from Chrome, or by
+        using Chrome's &ldquo;Clear Extension Storage&rdquo; option.
+      </li>
+    </ul>
+
+    <!-- 4. Third-Party Services -->
+    <h2>4. Third-Party Services</h2>
+    <p>
+      The Extension may interact with the following third-party services. <strong>All interactions
+      are opt-in</strong> — none are active unless you explicitly configure them.
+    </p>
+
+    <ul>
+      <li>
+        <strong>Canvas LMS (your institution)</strong> — The Extension calls your institution's
+        Canvas REST API using the token you provide. Your institution's own privacy policy governs
+        that data.
+      </li>
+      <li>
+        <strong>OpenAI</strong> (optional) — If you supply an OpenAI API key and request an
+        AI-generated estimate, assignment text is sent to OpenAI for processing. See
+        <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener">
+          OpenAI's Privacy Policy
+        </a>.
+      </li>
+      <li>
+        <strong>Ollama (local)</strong> (optional) — If you configure a local Ollama model, all
+        processing happens on your own machine at <code>localhost</code>. No data leaves your
+        device via this path.
+      </li>
+      <li>
+        <strong>Stripe</strong> — Subscription status for premium features is validated through
+        the Extension's backend API. Only an anonymous subscription identifier is exchanged;
+        payment details are handled entirely by Stripe and never pass through the Extension. See
+        <a href="https://stripe.com/privacy" target="_blank" rel="noopener">
+          Stripe's Privacy Policy
+        </a>.
+      </li>
+      <li>
+        <strong>Google Calendar</strong> (optional, premium) — If you enable calendar
+        integration, the Extension requests permission to create calendar events. Google's
+        <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">
+          Privacy Policy
+        </a> applies to that interaction.
+      </li>
+    </ul>
+
+    <!-- 5. What Is NOT Collected -->
+    <h2>5. What Is Not Collected</h2>
+
+    <div class="highlight-box not-collected">
+      <p>The Extension does NOT collect, store, or transmit any of the following.</p>
+    </div>
+
+    <ul>
+      <li>No analytics or usage telemetry sent to the developer.</li>
+      <li>No browsing history or activity outside of Canvas LMS pages.</li>
+      <li>No personally identifiable information (name, email, student ID, etc.).</li>
+      <li>No advertising identifiers or tracking pixels.</li>
+      <li>No crash reports or diagnostics sent off-device.</li>
+      <li>No data sold or shared with advertisers or data brokers, ever.</li>
+    </ul>
+
+    <!-- 6. Notifications -->
+    <h2>6. Browser Notifications</h2>
+    <p>
+      The Extension may display browser notifications to alert you about upcoming or urgent
+      assignments. These notifications are generated entirely on your device from locally cached
+      assignment data. No data is transmitted to produce them.
+    </p>
+
+    <!-- 7. Children -->
+    <h2>7. Children's Privacy</h2>
+    <p>
+      The Extension is not directed at children under the age of 13. We do not knowingly collect
+      personal information from children under 13. If you believe a child has provided personal
+      information through the Extension, please contact us so we can take appropriate action.
+    </p>
+
+    <!-- 8. Changes -->
+    <h2>8. Changes to This Policy</h2>
+    <p>
+      If this policy changes materially, the effective date above will be updated and the new
+      version will be published at the same URL. Continued use of the Extension after a change
+      constitutes acceptance of the updated policy.
+    </p>
+
+    <!-- 9. Contact -->
+    <h2>9. Contact</h2>
+    <p>
+      If you have questions or concerns about this privacy policy, please contact:
+    </p>
+    <p>
+      <span class="placeholder">privacy@[yourdomain].com</span>
+      &nbsp;&mdash;&nbsp;
+      <em>Replace this address with your actual contact email before publishing.</em>
+    </p>
+
+    <footer>
+      <p>Canvas LMS Time Estimator &mdash; Privacy Policy &mdash; Effective May 6, 2026</p>
+    </footer>
+  </div>
+</body>
+</html>

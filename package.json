@@ -11,9 +11,9 @@
     "lint": "eslint src/**/*.{js,jsx,ts,tsx}",
     "lint:fix": "eslint src/**/*.{js,jsx,ts,tsx} --fix",
     "test": "vitest",
-    "build:prod": "NODE_ENV=production vite build",
-    "zip": "npm run build && cd dist && bestzip ../canvas-time-estimator.zip *",
-    "zip:prod": "npm run build:prod && cd dist && bestzip ../canvas-time-estimator.zip *"
+    "build:prod": "vite build",
+    "zip": "npm run build && node -e \"require('child_process').execSync('bestzip ../canvas-time-estimator.zip *', {cwd: 'dist', stdio: 'inherit'})\"",
+    "zip:prod": "npm run build:prod && node -e \"require('child_process').execSync('bestzip ../canvas-time-estimator.zip *', {cwd: 'dist', stdio: 'inherit'})\""
   },
   "dependencies": {
     "react": "^18.2.0",

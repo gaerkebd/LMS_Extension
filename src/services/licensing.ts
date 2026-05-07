@@ -79,7 +79,11 @@ export class LicensingService {
     } catch (error) {
       console.error('[Licensing] Validation failed:', error);
 
-      // If we have a cached tier, keep using it during network failures
+      // Graceful degradation: if the backend URL is still a placeholder (pre-launch)
+      // or if the network request fails for any other reason, we fall back to the
+      // cached tier so the user is not incorrectly downgraded mid-session.
+      // Once STRIPE_CONFIG.backendUrl is set to a real URL, this path will only
+      // be reached on genuine network errors, not on every validation attempt.
       const { [TIER_CACHE_KEY]: cached } = await chrome.storage.local.get(TIER_CACHE_KEY);
       if (cached && this.isCacheValid(cached)) {
         return cached as UserTier;
